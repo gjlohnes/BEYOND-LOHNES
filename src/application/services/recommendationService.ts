@@ -2,7 +2,6 @@ import { db } from '../../persistence/db';
 import type { DomainEvent } from '../../domain/common/events';
 import type { Outcome, Recommendation } from '../../domain/recommendation/types';
 import type { RecommendationDecision } from '../../domain/recommendation/decision';
-import { startReset, startShiftDown } from './ritualService';
 
 function decisionEvent(
   recommendation: Recommendation,
@@ -90,17 +89,10 @@ export async function decideRecommendation(
     return { event, outcome, commandResult: null };
   }
 
-  await db.events.add(event);
-  const commandResult =
-    recommendation.suggestedCommand === 'START_RESET'
-      ? await startReset(recommendation.beyondDayId, 3, recommendation.id)
-      : recommendation.suggestedCommand === 'START_SHIFT_DOWN'
-        ? await startShiftDown(recommendation.beyondDayId, recommendation.id)
-        : null;
-
-  const outcome = commandResult
-    ? null
-    : terminalOutcome(recommendation, 'UNKNOWN');
-  if (outcome) await db.outcomes.add(outcome);
-  return { event, outcome, commandResult };
+  const outcome = terminalOutcome(recommendation, 'UNKNOWN');
+  await db.transaction('rw', db.events, db.outcomes, async () => {
+    await db.events.add(event);
+    await db.outcomes.add(outcome);
+  });
+  return { event, outcome, commandResult: null };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getTodayState, startDay, submitCheckIn } from '../../../application/services/dayService';
 import { decideRecommendation } from '../../../application/services/recommendationService';
 import { completeShiftDown, startShiftDown } from '../../../application/services/ritualService';
@@ -7,6 +7,7 @@ import type { Recommendation } from '../../../domain/recommendation/types';
 import { getShiftDownSteps } from '../../../engine/shiftDownRules';
 
 export function TodayScreen() {
+  const navigate = useNavigate();
   const [dayId, setDayId] = useState<string | null>(null);
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [status, setStatus] = useState('');
@@ -48,11 +49,13 @@ export function TodayScreen() {
   async function decide(decision: 'ACCEPT' | 'DISMISS' | 'NO_ACTION') {
     if (!rec) return;
     try {
-      const result = await decideRecommendation(rec.id, decision);
-      if (result.commandResult?.status === 'COMPLETED') {
-        setStatus(`${decision} stored. ${result.commandResult.commandId} started.`);
-      } else {
-        setStatus(`${decision} stored.`);
+      await decideRecommendation(rec.id, decision);
+      setStatus(`${decision} stored.`);
+      if (decision === 'ACCEPT' && rec.suggestedCommand === 'START_RESET') {
+        navigate(`/reset?recommendationId=${rec.id}`);
+      } else if (decision === 'ACCEPT' && rec.suggestedCommand === 'START_SHIFT_DOWN' && dayId) {
+        const result = await startShiftDown(dayId, rec.id);
+        if (result.status === 'COMPLETED') setShiftDownCommandId(result.commandId);
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Decision not stored.');

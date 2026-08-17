@@ -72,6 +72,25 @@ describe('persistent FIELD loop', () => {
     expect(history.some((event) => event.type === 'SHIFT_DOWN_STARTED')).toBe(true);
   });
 
+  it('accepts RESET without inventing intensity and links the later ritual outcome', async () => {
+    const day = await startDay('OFF_DUTY');
+    const { recommendation } = await submitCheckIn(day.id, {
+      energy: 1,
+      stress: 1,
+      mood: 4,
+      soreness: 0,
+      alcoholUrge: 0,
+    });
+    expect(recommendation.suggestedCommand).toBe('START_RESET');
+    const decision = await decideRecommendation(recommendation.id, 'ACCEPT');
+    expect(decision.commandResult).toBeNull();
+
+    const reset = await startReset(day.id, 5, recommendation.id);
+    await completeReset(day.id, reset.commandId, recommendation.id);
+    const why = await getWhyContext(recommendation.id);
+    expect(why?.outcomes.map((outcome) => outcome.result)).toContain('COMPLETED');
+  });
+
   it('records dismiss and override as immutable historical evidence', async () => {
     const day = await startDay('OFF_DUTY');
     const first = await submitCheckIn(day.id, {

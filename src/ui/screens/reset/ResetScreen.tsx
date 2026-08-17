@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getTodayState } from '../../../application/services/dayService';
 import { completeReset, startReset } from '../../../application/services/ritualService';
 import type { ResetIntensity } from '../../../domain/reset/types';
 import { getResetGuidance } from '../../../engine/resetRules';
 
 export function ResetScreen() {
+  const [searchParams] = useSearchParams();
+  const recommendationId = searchParams.get('recommendationId') ?? undefined;
   const [dayId, setDayId] = useState<string | null>(null);
   const [intensity, setIntensity] = useState<ResetIntensity>(3);
   const [commandId, setCommandId] = useState<string | null>(null);
@@ -17,7 +19,7 @@ export function ResetScreen() {
 
   async function begin() {
     if (!dayId) return;
-    const result = await startReset(dayId, intensity);
+    const result = await startReset(dayId, intensity, recommendationId);
     if (result.status === 'COMPLETED') {
       setCommandId(result.commandId);
       setStatus('RESET started. BODY BEFORE STORY.');
@@ -28,7 +30,7 @@ export function ResetScreen() {
 
   async function complete() {
     if (!dayId || !commandId) return;
-    await completeReset(dayId, commandId);
+    await completeReset(dayId, commandId, recommendationId);
     setStatus('RESET completed and stored.');
     setCommandId(null);
   }
