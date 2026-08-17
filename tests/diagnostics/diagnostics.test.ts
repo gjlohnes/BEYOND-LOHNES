@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, expect, it } from 'vitest';
 import { db } from '../../src/persistence/db';
 import { getDiagnosticsSummary } from '../../src/diagnostics/diagnostics';
 import { startDay } from '../../src/application/services/dayService';

@@ -8,7 +8,7 @@ export function MoreScreen() {
   const [candidate, setCandidate] = useState<{ raw: string; preview: BackupPreview } | null>(null);
 
   async function refreshDiagnostics() { setDiagnostics(await getDiagnosticsSummary()); }
-  useEffect(() => { void refreshDiagnostics(); }, []);
+  useEffect(() => { void getDiagnosticsSummary().then(setDiagnostics); }, []);
 
   async function backup() {
     try { await downloadBackup(); setStatus('Backup exported.'); await refreshDiagnostics(); }
