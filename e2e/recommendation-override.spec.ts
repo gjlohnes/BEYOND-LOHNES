@@ -9,7 +9,7 @@ async function submitGreenCheckIn(page: Page) {
   await page.getByRole('button', { name: 'REASSESS' }).click();
 }
 
-test('override to RESET records the decision and enters the selected command flow', async ({ page }) => {
+test('override RESET survives reload and completes the selected command flow', async ({ page }) => {
   await page.goto('/#/today');
   await page.getByRole('button', { name: 'START DAY' }).click();
   await submitGreenCheckIn(page);
@@ -19,9 +19,18 @@ test('override to RESET records the decision and enters the selected command flo
   await expect(page).toHaveURL(/#\/reset\?recommendationId=/);
   await page.getByRole('button', { name: 'START RESET' }).click();
   await expect(page.getByRole('status')).toContainText('RESET started. BODY BEFORE STORY.');
+
+  await page.reload();
+  await expect(page.getByRole('status')).toContainText('RESET in progress.');
+  await expect(page.getByLabel('Intensity')).toBeDisabled();
+  await page.getByRole('button', { name: 'COMPLETE RESET' }).click();
+  await expect(page.getByRole('status')).toContainText('RESET completed and stored.');
+
+  await page.getByRole('link', { name: 'Return to TODAY' }).click();
+  await expect(page.getByText('Decision: OVERRIDDEN', { exact: true })).toBeVisible();
 });
 
-test('override to SHIFT DOWN records, completes, and preserves the selected command flow', async ({ page }) => {
+test('override SHIFT DOWN survives reload, completes, and preserves the selected command flow', async ({ page }) => {
   await page.goto('/#/today');
   await page.getByRole('button', { name: 'START DAY' }).click();
   await submitGreenCheckIn(page);
@@ -29,6 +38,10 @@ test('override to SHIFT DOWN records, completes, and preserves the selected comm
 
   await page.getByRole('button', { name: 'SHIFT DOWN' }).first().click();
   await expect(page.getByText('Decision: OVERRIDDEN', { exact: true })).toBeVisible();
+  await expect(page.getByText('SHIFT DOWN in progress.', { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText('SHIFT DOWN in progress.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'COMPLETE SHIFT DOWN' }).click();
   await expect(page.getByRole('status')).toContainText('SHIFT DOWN completed and stored.');
 
