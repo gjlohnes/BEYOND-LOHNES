@@ -59,7 +59,20 @@ export function TodayScreen() {
   }
 
   useEffect(() => {
-    void applyTodayState();
+    void getTodayState().then(async (state) => {
+      const activeDayId = state.day?.id ?? null;
+      const activeShiftDown = activeDayId
+        ? await getActiveRitual(activeDayId, 'SHIFT_DOWN')
+        : null;
+      setDayId(activeDayId);
+      setWorkContext(state.day?.workContext ?? null);
+      setWorkEnded(state.workEnded);
+      setRec(state.recommendation);
+      setDecision(state.recommendationDecision);
+      setShiftDown(activeShiftDown);
+      if (state.recommendationDecision)
+        setStatus(`Recommendation ${decisionLabel(state.recommendationDecision).toLowerCase()}.`);
+    });
   }, []);
 
   async function begin(context: WorkContext) {
