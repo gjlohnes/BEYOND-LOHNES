@@ -3,51 +3,76 @@
 ## Branch
 `agent/v0.1-foundation-field-001`
 
-## Complete
+## COMPLETE
 - React/Vite/TypeScript PWA shell with HashRouter and TODAY / TRAIN / BODY / MORE navigation.
 - Core BeyondDay, StateCheckIn, DomainEvent, Recommendation, Outcome, Command, and DecisionTrace contracts.
 - Deterministic capacity and Engine priority baseline with first-class NO ACTION REQUIRED.
-- Dexie V1 schema and reproducible package lockfile.
-- Explicit START DAY and active-day recovery after reload/repository reads.
-- Persisted REASSESS command lifecycle, validated state check-in, deterministic recommendation issue history.
-- Persisted START_RESET and START_SHIFT_DOWN command lifecycles with duplicate-command rejection.
-- Minimum deterministic RESET intensity guidance and SHIFT DOWN steps.
+- Explicit application/data/backup/Dexie/Engine version boundaries.
+- Dexie V1 schema registration with append-only migration structure and no invented V2 transformation.
+- Safe startup database-open diagnostic state; migration/open failure never triggers automatic reset or deletion.
+- Explicit START DAY and active-day recovery after reload.
+- Explicit END DAY wake-to-sleep lifecycle with COMPLETED status, endedAt, DAY_ENDED history, idempotence, and subsequent new-day support.
+- Persisted REASSESS, START_RESET, and START_SHIFT_DOWN command lifecycles with duplicate-command rejection.
+- Validated state check-in and deterministic recommendation history.
 - Recommendation ACCEPT / DISMISS / OVERRIDE / NO ACTION history and outcomes.
-- RESET completion and SHIFT DOWN completion outcomes.
-- Recommendation-linked RESET preserves user-selected intensity instead of inventing a value.
-- Minimal history route and deep WHY route showing inputs, derived state, rules, decision evidence, and outcomes.
-- Zod validation at the implemented check-in/event persistence boundary.
-- IndexedDB-backed persistence tests using fake-indexeddb.
+- Minimum deterministic RESET intensity guidance and SHIFT DOWN steps with persisted completion outcomes.
+- Minimal history and deep WHY routes showing inputs, derived state, rules, decision evidence, and outcomes.
+- Zod schemas for current V0.1 core persisted records and implemented event payload boundaries.
+- Application-owned BEYOND_BACKUP v1 JSON export contract.
+- Backup preview and compatibility validation without database mutation.
+- Replace-only restoration with explicit confirmation, required pre-restore safety export, full-record validation, and transactional replacement.
+- Transaction rollback proof: failed restore preserves current history.
+- Local diagnostics for versions, active day, record counts, and last successful backup time.
+- PWA manifest, near-black theme/background, 192/512/maskable icons, generateSW precache, and prompt update mode.
+- Playwright production-preview FIELD acceptance covering reload persistence and offline core behavior.
+- Read-only GitHub Actions validation; CI no longer edits repository files.
 
-## Validation
-Node 24 GitHub Actions validation runs lint, Vitest, and production PWA build. The prior feature run passed lint, all tests, and build; final read-only npm-ci validation is required after this status commit.
+## PARTIAL
+- Actual OS/browser install-to-home-screen interaction remains a manual real-device acceptance check; manifest/icons/service-worker behavior is automated and validated.
+- Backup download and replace-restore domain behavior is automated/tested, but a real-device/browser user-gesture round trip should be manually smoke-tested before depending on backups operationally.
+- Event envelope validation covers all current event types; strict payload schemas are strongest for the event types currently implemented by FIELD. Future command/event payloads should gain their specific schema when implemented.
+- TRAIN and BODY surfaces remain intentionally incomplete beyond the foundation/navigation required for V0.1 staging.
 
-## Tests added in this milestone
-- RESET deterministic rule coverage.
-- SHIFT DOWN deterministic rule coverage.
-- REASSESS/check-in/recommendation persistence.
-- active BeyondDay recovery.
-- duplicate command rejection.
-- RESET/SHIFT DOWN lifecycle history.
-- recommendation dismiss/override/no-action outcomes.
-- recommendation-linked RESET acceptance without hidden intensity defaults.
-- Zod rejection of invalid check-ins.
-- Dexie V1 schema opening/table contract.
+## NOT STARTED / INTENTIONALLY DEFERRED
+- Real V2 migration fixture/transformation. There is no legitimate V2 yet; the first released V2 must add a named previous-version fixture and tested upgrader rather than inventing one now.
+- TRAIN A/B/C implementation beyond current scaffolding.
+- BODY V0.1 feature completion beyond current scaffolding.
+- All post-V0.1 scope: AI/LLM, cloud sync, accounts/backend, MONEY, calendar/wearables, advanced analytics, voice, Mission Queue, broad household systems.
 
-## Partial / remaining V0.1 foundation work
-- Full Zod schemas for every persisted/imported record, not only current boundaries.
-- Application-owned JSON backup/export.
-- Safe replace-restoration import with validation and recovery export.
-- Explicit named migration module and previous-version fixtures when V2 exists; V1 currently opens without destructive upgrade logic.
-- PWA icon assets and installed/offline E2E acceptance coverage.
-- END DAY/debrief lifecycle and broader FIELD acceptance flow verification.
-- TRAIN and BODY V0.1 implementation remain intentionally incomplete.
+## BLOCKERS
+- No current technical blocker for the FIELD 001 foundation.
+- Manual real-device PWA install and backup/restore UX smoke testing remain before recommending PR #1 for merge.
 
-## Applied decisions
-Canonical product doctrine and V0.1 Foundation Build Spec remain authority. No backend, accounts, AI, cloud sync, MONEY, analytics SDK, speculative state library, or visual redesign was added.
+## VALIDATION
+Latest green Node 24 GitHub Actions validation on the implementation branch/PR:
+- `npm ci`: PASS
+- ESLint: PASS
+- Vitest: 10 files / 24 tests PASS
+- TypeScript + Vite production PWA build: PASS
+- PWA generateSW: PASS; service worker generated with application-shell precache
+- Playwright FIELD offline acceptance: 1/1 PASS
 
-## Environment
-The interactive runtime has Node 22 and no outbound npm registry DNS. The locked baseline requires Node 24 LTS, so executable validation runs through GitHub Actions on Node 24.
+Automated FIELD browser acceptance proves:
+- START DAY
+- state check-in / REASSESS
+- one deterministic recommendation
+- WHY trace
+- recommendation decision
+- RESET start/completion
+- meaningful history
+- reload persistence
+- service-worker-ready offline reload
+- offline state check-in
+- offline deterministic NO ACTION REQUIRED recommendation
+- offline WHY
+- END DAY
+- final offline reload with no active day
 
-## Exact next step
-Implement application-owned backup/export plus validated safe replace-restoration import and explicit migration/version scaffolding, then add offline E2E coverage for the complete FIELD loop.
+## APPLIED DECISIONS
+Canonical product doctrine and V0.1 Foundation Build Spec remain authority. No backend, accounts, AI, cloud sync, MONEY, analytics SDK, speculative state library, or visual redesign was added. Backup is an application-owned contract rather than a raw IndexedDB export. Restore remains replace-only for V0.1.
+
+## ENVIRONMENT
+The interactive runtime is not the locked Node 24 execution environment, so executable dependency/build/browser validation is performed by read-only GitHub Actions on Node 24 using the committed lockfile.
+
+## EXACT NEXT STEP
+Run a focused PR #1 hardening/acceptance pass on a real phone/browser: install BEYOND as a PWA, exercise the FIELD loop offline, export a backup, perform a controlled replace-restore round trip, and review the full PR diff for architecture/data-safety regressions. If those manual acceptance checks pass, PR #1 is a candidate for an explicit merge decision. Do not merge automatically.
