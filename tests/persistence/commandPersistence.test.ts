@@ -4,7 +4,13 @@ import { db } from '../../src/persistence/db';
 import { startDay, submitCheckIn, getTodayState } from '../../src/application/services/dayService';
 import { executeCommand } from '../../src/application/commands/executeCommand';
 import { decideRecommendation } from '../../src/application/services/recommendationService';
-import { completeReset, startReset, startShiftDown } from '../../src/application/services/ritualService';
+import {
+  completeReset,
+  completeShiftDown,
+  getActiveRitual,
+  startReset,
+  startShiftDown,
+} from '../../src/application/services/ritualService';
 import { getDayHistory, getWhyContext } from '../../src/application/queries/history';
 
 beforeEach(async () => {
@@ -57,6 +63,20 @@ describe('persistent FIELD loop', () => {
     expect(second.errorCode).toBe('DUPLICATE_COMMAND');
   });
 
+  it('reconstructs active RESET and SHIFT DOWN from stored events until completion', async () => {
+    const day = await startDay('WORK');
+    const reset = await startReset(day.id, 4);
+    expect((await getActiveRitual(day.id, 'RESET'))?.commandId).toBe(reset.commandId);
+    expect((await getActiveRitual(day.id, 'RESET'))?.intensity).toBe(4);
+    await completeReset(day.id, reset.commandId);
+    expect(await getActiveRitual(day.id, 'RESET')).toBeNull();
+
+    const shift = await startShiftDown(day.id);
+    expect((await getActiveRitual(day.id, 'SHIFT_DOWN'))?.commandId).toBe(shift.commandId);
+    await completeShiftDown(day.id, shift.commandId);
+    expect(await getActiveRitual(day.id, 'SHIFT_DOWN')).toBeNull();
+  });
+
   it('persists RESET and SHIFT DOWN lifecycle events', async () => {
     const day = await startDay('WORK');
     const reset = await startReset(day.id, 4);
@@ -86,7 +106,9 @@ describe('persistent FIELD loop', () => {
     expect(decision.commandResult).toBeNull();
 
     const reset = await startReset(day.id, 5, recommendation.id);
-    await completeReset(day.id, reset.commandId, recommendation.id);
+    const recovered = await getActiveRitual(day.id, 'RESET');
+    expect(recovered?.recommendationId).toBe(recommendation.id);
+    await completeReset(day.id, reset.commandId);
     const why = await getWhyContext(recommendation.id);
     expect(why?.outcomes.map((outcome) => outcome.result)).toContain('COMPLETED');
   });
