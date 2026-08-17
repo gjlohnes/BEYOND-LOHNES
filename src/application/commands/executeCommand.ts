@@ -45,6 +45,10 @@ function positiveNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function positiveWholeNumber(value: unknown): value is number {
+  return positiveNumber(value) && Number.isInteger(value);
+}
+
 function isMinimumItemKey(value: unknown): value is MinimumItemKey {
   return typeof value === 'string' && MINIMUM_ITEM_KEYS.includes(value as MinimumItemKey);
 }
@@ -179,6 +183,18 @@ export async function executeCommand(
         command,
         'USER',
         { commandId: command.id, grams },
+        started.id,
+      ),
+    );
+  } else if (command.name === 'LOG_SLEEP') {
+    const durationMinutes = (command.input as { durationMinutes?: unknown }).durationMinutes;
+    if (!positiveWholeNumber(durationMinutes)) return invalidInput(command, started);
+    emitted.push(
+      event(
+        'SLEEP_LOGGED',
+        command,
+        'USER',
+        { commandId: command.id, durationMinutes },
         started.id,
       ),
     );
