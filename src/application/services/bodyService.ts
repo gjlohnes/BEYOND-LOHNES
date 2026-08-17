@@ -6,6 +6,7 @@ export interface BodyState {
   dayId: string | null;
   waterOz: number;
   proteinGrams: number;
+  sleepMinutes: number | null;
   recoveryMinutes: number;
   activeRecoverySessionId: string | null;
 }
@@ -17,6 +18,7 @@ export async function getBodyState(): Promise<BodyState> {
       dayId: null,
       waterOz: 0,
       proteinGrams: 0,
+      sleepMinutes: null,
       recoveryMinutes: 0,
       activeRecoverySessionId: null,
     };
@@ -31,6 +33,7 @@ export async function getBodyState(): Promise<BodyState> {
   ]);
   let waterOz = 0;
   let proteinGrams = 0;
+  let sleepMinutes: number | null = null;
 
   for (const event of events) {
     if (event.type === 'WATER_LOGGED') {
@@ -45,6 +48,16 @@ export async function getBodyState(): Promise<BodyState> {
         proteinGrams += grams;
       }
     }
+    if (event.type === 'SLEEP_LOGGED') {
+      const durationMinutes = (event.payload as { durationMinutes?: unknown }).durationMinutes;
+      if (
+        typeof durationMinutes === 'number' &&
+        Number.isInteger(durationMinutes) &&
+        durationMinutes > 0
+      ) {
+        sleepMinutes = durationMinutes;
+      }
+    }
   }
 
   const recoveryMinutes = recoverySessions.reduce(
@@ -57,6 +70,7 @@ export async function getBodyState(): Promise<BodyState> {
     dayId: day.id,
     waterOz,
     proteinGrams,
+    sleepMinutes,
     recoveryMinutes,
     activeRecoverySessionId: activeRecovery?.id ?? null,
   };
@@ -79,6 +93,16 @@ export async function logProtein(dayId: string, grams: number) {
     beyondDayId: dayId,
     issuedAt: new Date().toISOString(),
     input: { grams },
+  });
+}
+
+export async function logSleep(dayId: string, durationMinutes: number) {
+  return executeCommand({
+    id: crypto.randomUUID(),
+    name: 'LOG_SLEEP',
+    beyondDayId: dayId,
+    issuedAt: new Date().toISOString(),
+    input: { durationMinutes },
   });
 }
 
