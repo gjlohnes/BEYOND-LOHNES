@@ -4,6 +4,17 @@ import type { DomainEvent } from '../../domain/common/events';
 import type { ResetIntensity } from '../../domain/reset/types';
 import { assertValidEvent } from '../../persistence/validation';
 
+const MINIMUM_ITEM_KEYS = [
+  'HYDRATE',
+  'PROTEIN',
+  'MEDS',
+  'HYGIENE',
+  'MOVE',
+  'RECOVER_CONNECT',
+] as const;
+
+type MinimumItemKey = (typeof MINIMUM_ITEM_KEYS)[number];
+
 function event(
   type: DomainEvent['type'],
   command: Command,
@@ -34,6 +45,10 @@ function positiveNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function isMinimumItemKey(value: unknown): value is MinimumItemKey {
+  return typeof value === 'string' && MINIMUM_ITEM_KEYS.includes(value as MinimumItemKey);
+}
+
 async function persistCommandResult(
   command: Command,
   result: CommandResult,
@@ -45,6 +60,22 @@ async function persistCommandResult(
     if (duplicate) return rejected(command, 'DUPLICATE_COMMAND');
     if (result.emittedEvents.length > 0) await db.events.bulkAdd(result.emittedEvents);
     return result;
+  });
+}
+
+function invalidInput(command: Command, started: DomainEvent): Promise<CommandResult> {
+  const aborted = event(
+    'COMMAND_ABORTED',
+    command,
+    'SYSTEM',
+    { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
+    started.id,
+  );
+  return persistCommandResult(command, {
+    commandId: command.id,
+    status: 'REJECTED',
+    emittedEvents: [started, aborted],
+    errorCode: 'INVALID_COMMAND_INPUT',
   });
 }
 
@@ -77,21 +108,8 @@ export async function executeCommand(
       !Number.isInteger(intensity) ||
       intensity < 1 ||
       intensity > 5
-    ) {
-      const aborted = event(
-        'COMMAND_ABORTED',
-        command,
-        'SYSTEM',
-        { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
-        started.id,
-      );
-      return persistCommandResult(command, {
-        commandId: command.id,
-        status: 'REJECTED',
-        emittedEvents: [started, aborted],
-        errorCode: 'INVALID_COMMAND_INPUT',
-      });
-    }
+    )
+      return invalidInput(command, started);
     emitted.push(
       event(
         'RESET_STARTED',
@@ -118,23 +136,31 @@ export async function executeCommand(
         started.id,
       ),
     );
+  } else if (command.name === 'ENABLE_MINIMUM_DAY') {
+    emitted.push(
+      event(
+        'MINIMUM_DAY_ENABLED',
+        command,
+        'USER',
+        { commandId: command.id },
+        started.id,
+      ),
+    );
+  } else if (command.name === 'COMPLETE_MINIMUM_ITEM') {
+    const key = (command.input as { key?: unknown }).key;
+    if (!isMinimumItemKey(key)) return invalidInput(command, started);
+    emitted.push(
+      event(
+        'MINIMUM_ITEM_COMPLETED',
+        command,
+        'USER',
+        { commandId: command.id, key },
+        started.id,
+      ),
+    );
   } else if (command.name === 'LOG_WATER') {
     const amountOz = (command.input as { amountOz?: unknown }).amountOz;
-    if (!positiveNumber(amountOz)) {
-      const aborted = event(
-        'COMMAND_ABORTED',
-        command,
-        'SYSTEM',
-        { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
-        started.id,
-      );
-      return persistCommandResult(command, {
-        commandId: command.id,
-        status: 'REJECTED',
-        emittedEvents: [started, aborted],
-        errorCode: 'INVALID_COMMAND_INPUT',
-      });
-    }
+    if (!positiveNumber(amountOz)) return invalidInput(command, started);
     emitted.push(
       event(
         'WATER_LOGGED',
@@ -146,21 +172,7 @@ export async function executeCommand(
     );
   } else if (command.name === 'PROTEIN_ACTION') {
     const grams = (command.input as { grams?: unknown }).grams;
-    if (!positiveNumber(grams)) {
-      const aborted = event(
-        'COMMAND_ABORTED',
-        command,
-        'SYSTEM',
-        { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
-        started.id,
-      );
-      return persistCommandResult(command, {
-        commandId: command.id,
-        status: 'REJECTED',
-        emittedEvents: [started, aborted],
-        errorCode: 'INVALID_COMMAND_INPUT',
-      });
-    }
+    if (!positiveNumber(grams)) return invalidInput(command, started);
     emitted.push(
       event(
         'PROTEIN_ACTION_LOGGED',
