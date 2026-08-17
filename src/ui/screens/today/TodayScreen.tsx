@@ -29,7 +29,14 @@ export function TodayScreen() {
     if (state.recommendationDecision) setStatus(`Recommendation ${decisionLabel(state.recommendationDecision).toLowerCase()}.`);
   }
 
-  useEffect(() => { void refreshTodayState(); }, []);
+  useEffect(() => {
+    void getTodayState().then((state) => {
+      setDayId(state.day?.id ?? null);
+      setRec(state.recommendation);
+      setDecision(state.recommendationDecision);
+      if (state.recommendationDecision) setStatus(`Recommendation ${decisionLabel(state.recommendationDecision).toLowerCase()}.`);
+    });
+  }, []);
 
   async function begin() { const day = await startDay('UNKNOWN'); setDayId(day.id); setStatus('BEYOND Day started.'); }
   async function finishDay() { if (!dayId) return; await endDay(dayId); setDayId(null); setRec(null); setDecision(null); setStatus('BEYOND Day ended.'); }
