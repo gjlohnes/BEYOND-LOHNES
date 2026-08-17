@@ -152,14 +152,15 @@ export async function submitCheckIn(
     throw new Error(commandResult.errorCode ?? 'REASSESS_FAILED');
 
   const recentEvents = await db.events
-    .where('beyondDayId')
-    .equals(dayId)
+    .where('[beyondDayId+occurredAt]')
+    .between([dayId, Dexie.minKey], [dayId, Dexie.maxKey])
     .reverse()
-    .sortBy('occurredAt');
+    .limit(25)
+    .toArray();
   const result = evaluate({
     beyondDay: day,
     latestCheckIn: checkIn,
-    recentEvents: recentEvents.slice(0, 25),
+    recentEvents,
     context: {},
     now,
   });
