@@ -14,6 +14,8 @@ import {
   startShiftDown,
   type ActiveRitual,
 } from '../../../application/services/ritualService';
+import { markWorkEnded } from '../../../application/services/workContextService';
+import type { WorkContext } from '../../../domain/common/types';
 import type { Recommendation } from '../../../domain/recommendation/types';
 import { getShiftDownSteps } from '../../../engine/shiftDownRules';
 import { MinimumDayCard } from './MinimumDayCard';
@@ -36,47 +38,37 @@ const CHECK_IN_FIELDS = [
 export function TodayScreen() {
   const navigate = useNavigate();
   const [dayId, setDayId] = useState<string | null>(null);
+  const [workContext, setWorkContext] = useState<WorkContext | null>(null);
+  const [workEnded, setWorkEnded] = useState(false);
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [status, setStatus] = useState('');
   const [decision, setDecision] = useState<PersistedRecommendationDecision | null>(null);
   const [shiftDown, setShiftDown] = useState<ActiveRitual | null>(null);
 
-  async function restoreShiftDown(activeDayId: string | null) {
-    if (!activeDayId) {
-      setShiftDown(null);
-      return;
-    }
-    setShiftDown(await getActiveRitual(activeDayId, 'SHIFT_DOWN'));
-  }
-
-  async function refreshTodayState() {
+  async function applyTodayState() {
     const state = await getTodayState();
     const activeDayId = state.day?.id ?? null;
     setDayId(activeDayId);
+    setWorkContext(state.day?.workContext ?? null);
+    setWorkEnded(state.workEnded);
     setRec(state.recommendation);
     setDecision(state.recommendationDecision);
-    await restoreShiftDown(activeDayId);
+    setShiftDown(activeDayId ? await getActiveRitual(activeDayId, 'SHIFT_DOWN') : null);
     if (state.recommendationDecision)
       setStatus(`Recommendation ${decisionLabel(state.recommendationDecision).toLowerCase()}.`);
   }
 
   useEffect(() => {
-    void getTodayState().then(async (state) => {
-      const activeDayId = state.day?.id ?? null;
-      setDayId(activeDayId);
-      setRec(state.recommendation);
-      setDecision(state.recommendationDecision);
-      await restoreShiftDown(activeDayId);
-      if (state.recommendationDecision)
-        setStatus(`Recommendation ${decisionLabel(state.recommendationDecision).toLowerCase()}.`);
-    });
+    void applyTodayState();
   }, []);
 
-  async function begin() {
+  async function begin(context: WorkContext) {
     try {
-      const day = await startDay('UNKNOWN');
+      const day = await startDay(context);
       setDayId(day.id);
-      setStatus('BEYOND Day started.');
+      setWorkContext(day.workContext);
+      setWorkEnded(false);
+      setStatus(day.workContext === 'WORK' ? 'Work BEYOND Day started.' : 'BEYOND Day started.');
     } catch {
       setStatus('BEYOND Day could not be started. Existing local history was not changed.');
     }
@@ -87,6 +79,8 @@ export function TodayScreen() {
     try {
       await endDay(dayId);
       setDayId(null);
+      setWorkContext(null);
+      setWorkEnded(false);
       setRec(null);
       setDecision(null);
       setShiftDown(null);
@@ -97,6 +91,23 @@ export function TodayScreen() {
           ? 'Finish the active RESET, SHIFT DOWN, workout, or recovery session before ending this BEYOND Day.'
           : 'BEYOND Day could not be ended. Existing local history remains available.',
       );
+    }
+  }
+
+  async function finishWorkPeriod() {
+    if (!dayId || workContext !== 'WORK' || workEnded) return;
+    try {
+      const result = await markWorkEnded(dayId);
+      if (result.status === 'COMPLETED' || result.errorCode === 'WORK_ALREADY_ENDED') {
+        setWorkEnded(true);
+        setRec(null);
+        setDecision(null);
+        setStatus('Shift ended. Reassess when ready for the post-shift recommendation.');
+      } else {
+        setStatus('Work transition could not be stored.');
+      }
+    } catch {
+      setStatus('Work transition could not be stored. Existing history was not changed.');
     }
   }
 
@@ -148,7 +159,7 @@ export function TodayScreen() {
       }
     } catch (error) {
       if (error instanceof Error && error.message === 'RECOMMENDATION_ALREADY_DECIDED') {
-        await refreshTodayState();
+        await applyTodayState();
         return;
       }
       setStatus('Decision could not be stored.');
@@ -182,7 +193,7 @@ export function TodayScreen() {
       }
     } catch (error) {
       if (error instanceof Error && error.message === 'RECOMMENDATION_ALREADY_DECIDED') {
-        await refreshTodayState();
+        await applyTodayState();
         return;
       }
       setStatus('Override could not be stored.');
@@ -223,12 +234,16 @@ export function TodayScreen() {
       {!dayId ? (
         <div className="card">
           <h2>No active day</h2>
-          <p className="muted">A BEYOND Day starts when you start it.</p>
-          <button onClick={begin}>START DAY</button>
+          <p className="muted">A BEYOND Day starts when you start it. Standard start is off duty.</p>
+          <button onClick={() => begin('OFF_DUTY')}>START DAY</button>{' '}
+          <button onClick={() => begin('WORK')}>START WORK DAY</button>
         </div>
       ) : (
         <>
           <div className="card">
+            <p className="muted">
+              Context: {workContext === 'WORK' ? (workEnded ? 'WORK · POST SHIFT' : 'WORK · ACTIVE') : workContext ?? 'UNKNOWN'}
+            </p>
             <h2>{rec?.title ?? 'State check-in required'}</h2>
             <p>{rec?.rationale ?? 'Record current state to produce one deterministic recommendation.'}</p>
             {rec && (
@@ -278,6 +293,9 @@ export function TodayScreen() {
 
           <div className="card">
             <h2>Context actions</h2>
+            {workContext === 'WORK' && !workEnded && (
+              <p><button onClick={finishWorkPeriod}>SHIFT ENDED</button></p>
+            )}
             <p><Link to="/reset">I NEED A RESET</Link></p>
             {!shiftDown ? (
               <button onClick={beginShiftDown}>SHIFT DOWN</button>
