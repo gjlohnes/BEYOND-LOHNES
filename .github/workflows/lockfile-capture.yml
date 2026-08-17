@@ -1,0 +1,21 @@
+name: capture-lockfile
+on:
+  push:
+    branches:
+      - agent/v0.1-foundation-field-001
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --package-lock-only --ignore-scripts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playwright-package-lock
+          path: package-lock.json
