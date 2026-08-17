@@ -14,10 +14,10 @@ export async function getWorkTransitionState(dayId: string) {
   const endedAt = workEnded?.occurredAt ?? null;
   const shiftDownCompletedAt = latestShiftDownCompleted?.occurredAt ?? null;
   const postShift =
-    Boolean(endedAt) && (!shiftDownCompletedAt || shiftDownCompletedAt < (endedAt as string));
+    endedAt !== null && (shiftDownCompletedAt === null || shiftDownCompletedAt <= endedAt);
 
   return {
-    ended: Boolean(endedAt),
+    ended: endedAt !== null,
     endedAt,
     shiftDownCompletedAt,
     postShift,
