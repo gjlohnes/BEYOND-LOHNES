@@ -11,6 +11,7 @@ import {
   stateCheckInPayloadSchema,
 } from '../../persistence/validation';
 import { executeCommand } from '../commands/executeCommand';
+import { getActiveRitual } from './ritualService';
 
 export type PersistedRecommendationDecision = 'ACCEPT' | 'DISMISS' | 'OVERRIDE' | 'NO_ACTION';
 
@@ -56,11 +57,22 @@ export async function startDay(workContext: WorkContext) {
 }
 
 export async function endDay(dayId: string) {
-  return db.transaction('rw', db.beyondDays, db.events, async () => {
+  return db.transaction('rw', db.beyondDays, db.events, db.workoutSessions, async () => {
     const dayRaw = await db.beyondDays.get(dayId);
     if (!dayRaw) throw new Error('DAY_NOT_FOUND');
     const day = assertValidBeyondDay(dayRaw);
     if (day.status === 'COMPLETED') return day;
+
+    const [activeWorkout, activeReset, activeShiftDown] = await Promise.all([
+      db.workoutSessions
+        .where('status')
+        .equals('ACTIVE')
+        .filter((session) => session.beyondDayId === dayId)
+        .first(),
+      getActiveRitual(dayId, 'RESET'),
+      getActiveRitual(dayId, 'SHIFT_DOWN'),
+    ]);
+    if (activeWorkout || activeReset || activeShiftDown) throw new Error('ACTIVE_FLOW_EXISTS');
 
     const now = new Date().toISOString();
     const commandId = crypto.randomUUID();
