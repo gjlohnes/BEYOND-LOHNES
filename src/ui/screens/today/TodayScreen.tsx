@@ -8,7 +8,12 @@ import {
   type PersistedRecommendationDecision,
 } from '../../../application/services/dayService';
 import { decideRecommendation } from '../../../application/services/recommendationService';
-import { completeShiftDown, startShiftDown } from '../../../application/services/ritualService';
+import {
+  completeShiftDown,
+  getActiveRitual,
+  startShiftDown,
+  type ActiveRitual,
+} from '../../../application/services/ritualService';
 import type { Recommendation } from '../../../domain/recommendation/types';
 import { getShiftDownSteps } from '../../../engine/shiftDownRules';
 import { MinimumDayCard } from './MinimumDayCard';
@@ -34,22 +39,34 @@ export function TodayScreen() {
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [status, setStatus] = useState('');
   const [decision, setDecision] = useState<PersistedRecommendationDecision | null>(null);
-  const [shiftDownCommandId, setShiftDownCommandId] = useState<string | null>(null);
+  const [shiftDown, setShiftDown] = useState<ActiveRitual | null>(null);
+
+  async function restoreShiftDown(activeDayId: string | null) {
+    if (!activeDayId) {
+      setShiftDown(null);
+      return;
+    }
+    setShiftDown(await getActiveRitual(activeDayId, 'SHIFT_DOWN'));
+  }
 
   async function refreshTodayState() {
     const state = await getTodayState();
-    setDayId(state.day?.id ?? null);
+    const activeDayId = state.day?.id ?? null;
+    setDayId(activeDayId);
     setRec(state.recommendation);
     setDecision(state.recommendationDecision);
+    await restoreShiftDown(activeDayId);
     if (state.recommendationDecision)
       setStatus(`Recommendation ${decisionLabel(state.recommendationDecision).toLowerCase()}.`);
   }
 
   useEffect(() => {
-    void getTodayState().then((state) => {
-      setDayId(state.day?.id ?? null);
+    void getTodayState().then(async (state) => {
+      const activeDayId = state.day?.id ?? null;
+      setDayId(activeDayId);
       setRec(state.recommendation);
       setDecision(state.recommendationDecision);
+      await restoreShiftDown(activeDayId);
       if (state.recommendationDecision)
         setStatus(`Recommendation ${decisionLabel(state.recommendationDecision).toLowerCase()}.`);
     });
@@ -72,7 +89,7 @@ export function TodayScreen() {
       setDayId(null);
       setRec(null);
       setDecision(null);
-      setShiftDownCommandId(null);
+      setShiftDown(null);
       setStatus('BEYOND Day ended.');
     } catch {
       setStatus('BEYOND Day could not be ended. Existing local history remains available.');
@@ -106,16 +123,24 @@ export function TodayScreen() {
       await decideRecommendation(rec.id, nextDecision);
       setDecision(nextDecision);
       setStatus(`Recommendation ${decisionLabel(nextDecision).toLowerCase()}.`);
-      if (nextDecision === 'ACCEPT' && rec.suggestedCommand === 'START_RESET')
+      if (nextDecision === 'ACCEPT' && rec.suggestedCommand === 'START_RESET') {
         navigate(`/reset?recommendationId=${rec.id}`);
-      else if (
+      } else if (
         nextDecision === 'ACCEPT' &&
         rec.suggestedCommand === 'START_SHIFT_DOWN' &&
         dayId
       ) {
         const result = await startShiftDown(dayId, rec.id);
-        if (result.status === 'COMPLETED') setShiftDownCommandId(result.commandId);
-        else setStatus('Recommendation accepted, but SHIFT DOWN could not be started.');
+        if (result.status === 'COMPLETED') {
+          setShiftDown({
+            kind: 'SHIFT_DOWN',
+            commandId: result.commandId,
+            recommendationId: rec.id,
+            startedAt: new Date().toISOString(),
+          });
+        } else {
+          setStatus('Recommendation accepted, but SHIFT DOWN could not be started.');
+        }
       }
     } catch (error) {
       if (error instanceof Error && error.message === 'RECOMMENDATION_ALREADY_DECIDED') {
@@ -142,7 +167,12 @@ export function TodayScreen() {
 
       const result = await startShiftDown(dayId, rec.id);
       if (result.status === 'COMPLETED') {
-        setShiftDownCommandId(result.commandId);
+        setShiftDown({
+          kind: 'SHIFT_DOWN',
+          commandId: result.commandId,
+          recommendationId: rec.id,
+          startedAt: new Date().toISOString(),
+        });
       } else {
         setStatus('Override recorded, but SHIFT DOWN could not be started.');
       }
@@ -160,7 +190,11 @@ export function TodayScreen() {
     try {
       const result = await startShiftDown(dayId);
       if (result.status === 'COMPLETED') {
-        setShiftDownCommandId(result.commandId);
+        setShiftDown({
+          kind: 'SHIFT_DOWN',
+          commandId: result.commandId,
+          startedAt: new Date().toISOString(),
+        });
         setStatus('SHIFT DOWN started and stored.');
       } else {
         setStatus('SHIFT DOWN could not be started.');
@@ -171,10 +205,10 @@ export function TodayScreen() {
   }
 
   async function finishShiftDown() {
-    if (!dayId || !shiftDownCommandId) return;
+    if (!dayId || !shiftDown) return;
     try {
-      await completeShiftDown(dayId, shiftDownCommandId);
-      setShiftDownCommandId(null);
+      await completeShiftDown(dayId, shiftDown.commandId, shiftDown.recommendationId);
+      setShiftDown(null);
       setStatus('SHIFT DOWN completed and stored.');
     } catch {
       setStatus('SHIFT DOWN could not be completed. Your existing history remains stored.');
@@ -185,11 +219,7 @@ export function TodayScreen() {
     <section>
       <div className="eyebrow">BEYOND // TODAY</div>
       <h1>Command</h1>
-      {status && (
-        <p role="status" className="card">
-          {status}
-        </p>
-      )}
+      {status && <p role="status" className="card">{status}</p>}
       {!dayId ? (
         <div className="card">
           <h2>No active day</h2>
@@ -200,10 +230,7 @@ export function TodayScreen() {
         <>
           <div className="card">
             <h2>{rec?.title ?? 'State check-in required'}</h2>
-            <p>
-              {rec?.rationale ??
-                'Record current state to produce one deterministic recommendation.'}
-            </p>
+            <p>{rec?.rationale ?? 'Record current state to produce one deterministic recommendation.'}</p>
             {rec && (
               <>
                 <p><Link to={`/why/${rec.id}`}>WHY</Link></p>
@@ -252,13 +279,12 @@ export function TodayScreen() {
           <div className="card">
             <h2>Context actions</h2>
             <p><Link to="/reset">I NEED A RESET</Link></p>
-            {!shiftDownCommandId ? (
+            {!shiftDown ? (
               <button onClick={beginShiftDown}>SHIFT DOWN</button>
             ) : (
               <>
-                <ol>
-                  {getShiftDownSteps().map((step) => <li key={step.id}>{step.label}</li>)}
-                </ol>
+                <p className="muted">SHIFT DOWN in progress.</p>
+                <ol>{getShiftDownSteps().map((step) => <li key={step.id}>{step.label}</li>)}</ol>
                 <button onClick={finishShiftDown}>COMPLETE SHIFT DOWN</button>
               </>
             )}
