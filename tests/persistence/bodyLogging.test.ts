@@ -2,9 +2,11 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { startDay } from '../../src/application/services/dayService';
 import {
+  completeBodyRecovery,
   getBodyState,
   logProtein,
   logWater,
+  startBodyRecovery,
 } from '../../src/application/services/bodyService';
 import { db } from '../../src/persistence/db';
 
@@ -23,11 +25,35 @@ describe('BODY event logging', () => {
     expect((await logProtein(day.id, 35)).status).toBe('COMPLETED');
 
     const state = await getBodyState();
-    expect(state).toEqual({ dayId: day.id, waterOz: 64.2, proteinGrams: 35 });
+    expect(state).toEqual({
+      dayId: day.id,
+      waterOz: 64.2,
+      proteinGrams: 35,
+      recoveryMinutes: 0,
+      activeRecoverySessionId: null,
+    });
 
     const events = await db.events.where('beyondDayId').equals(day.id).toArray();
     expect(events.filter((event) => event.type === 'WATER_LOGGED')).toHaveLength(2);
     expect(events.filter((event) => event.type === 'PROTEIN_ACTION_LOGGED')).toHaveLength(1);
+  });
+
+  it('records recovery through the existing recovery-session domain contract', async () => {
+    const day = await startDay('OFF_DUTY');
+    const session = await startBodyRecovery(day.id);
+
+    expect((await getBodyState()).activeRecoverySessionId).toBe(session.id);
+
+    const closed = await completeBodyRecovery(session.id, 12);
+    expect(closed.status).toBe('COMPLETED');
+
+    const state = await getBodyState();
+    expect(state.recoveryMinutes).toBe(12);
+    expect(state.activeRecoverySessionId).toBeNull();
+
+    const persisted = await db.workoutSessions.get(session.id);
+    expect(persisted?.sessionType).toBe('RECOVERY');
+    expect(persisted?.durationMinutes).toBe(12);
   });
 
   it('rejects invalid quantities and preserves an explicit aborted command record', async () => {
