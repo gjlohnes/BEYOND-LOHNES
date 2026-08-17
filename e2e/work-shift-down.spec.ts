@@ -20,7 +20,7 @@ test('WORK day records shift end and deterministically recommends SHIFT DOWN',as
   await page.getByRole('button',{name:'REASSESS'}).click();
   await expect(page.getByRole('heading',{name:'Shift down'})).toBeVisible();
   await page.getByRole('link',{name:'WHY'}).click();
-  await expect(page.getByText('SHIFT_DOWN: matched — Explicit work-ended fact without completed SHIFT DOWN',{exact:true})).toBeVisible();
+  await expect(page.getByText('SHIFT_DOWN: matched — Explicit unresolved post-shift context',{exact:true})).toBeVisible();
   await page.goBack();
 
   await page.getByRole('button',{name:'ACCEPT'}).click();
