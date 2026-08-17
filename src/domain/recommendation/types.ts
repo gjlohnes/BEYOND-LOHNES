@@ -11,6 +11,7 @@ export type CommandName =
   | 'RECOVERY_SESSION'
   | 'LOG_WATER'
   | 'PROTEIN_ACTION'
+  | 'LOG_SLEEP'
   | 'SLEEP_PROTECTION'
   | 'SUGGEST_ACTIVITY'
   | 'START_DAY'
