@@ -42,7 +42,14 @@ describe('MINIMUM DAY', () => {
       complete: true,
       source: 'MANUAL',
     });
-    const medsEvent = await db.events.where('type').equals('MINIMUM_ITEM_COMPLETED').first();
+
+    const manualEvents = await db.events.where('type').equals('MINIMUM_ITEM_COMPLETED').toArray();
+    const medsEvent = manualEvents.find(
+      (event) =>
+        event.payload &&
+        typeof event.payload === 'object' &&
+        (event.payload as { key?: unknown }).key === 'MEDS',
+    );
     expect(medsEvent?.payload).toMatchObject({ key: 'MEDS' });
     expect(JSON.stringify(medsEvent?.payload)).not.toMatch(/medication|dose/i);
   });
