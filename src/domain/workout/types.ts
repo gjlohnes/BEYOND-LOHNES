@@ -4,7 +4,11 @@ export type WorkoutTemplateId = 'A' | 'B' | 'C';
 export type WorkoutSessionType = 'STANDARD' | 'REDUCED' | 'RECOVERY';
 export type WorkoutSessionStatus = 'ACTIVE' | 'COMPLETED' | 'PARTIAL' | 'ABANDONED';
 export type PerformedSetState = 'COMPLETED' | 'SKIPPED';
-export type ProgressionAction = 'NO_HISTORY' | 'INCREASE_NEXT_AVAILABLE' | 'HOLD' | 'REDUCE_NEXT_AVAILABLE';
+export type ProgressionAction =
+  | 'NO_HISTORY'
+  | 'INCREASE_NEXT_AVAILABLE'
+  | 'HOLD'
+  | 'REDUCE_NEXT_AVAILABLE';
 
 export interface WorkoutExerciseTemplate {
   id: string;
@@ -30,6 +34,7 @@ export interface WorkoutSession {
   status: WorkoutSessionStatus;
   startedAt: ISODateTime;
   endedAt?: ISODateTime;
+  durationMinutes?: number;
 }
 
 export interface PerformedSet {
