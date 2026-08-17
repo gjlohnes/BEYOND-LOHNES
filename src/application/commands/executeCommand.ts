@@ -92,6 +92,16 @@ export async function executeCommand(
   const day = await db.beyondDays.get(command.beyondDayId);
   if (!day || day.status !== 'ACTIVE') return rejected(command, 'DAY_NOT_FOUND');
 
+  if (command.name === 'MARK_WORK_ENDED') {
+    if (day.workContext !== 'WORK') return rejected(command, 'WORK_CONTEXT_REQUIRED');
+    const alreadyEnded = await db.events
+      .where('beyondDayId')
+      .equals(command.beyondDayId)
+      .filter((candidate) => candidate.type === 'WORK_PERIOD_ENDED')
+      .first();
+    if (alreadyEnded) return rejected(command, 'WORK_ALREADY_ENDED');
+  }
+
   const started = event(
     'COMMAND_STARTED',
     command,
@@ -137,6 +147,16 @@ export async function executeCommand(
           commandId: command.id,
           ...(options.recommendationId ? { recommendationId: options.recommendationId } : {}),
         },
+        started.id,
+      ),
+    );
+  } else if (command.name === 'MARK_WORK_ENDED') {
+    emitted.push(
+      event(
+        'WORK_PERIOD_ENDED',
+        command,
+        'USER',
+        { commandId: command.id },
         started.id,
       ),
     );
