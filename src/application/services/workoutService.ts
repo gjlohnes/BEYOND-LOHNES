@@ -48,6 +48,12 @@ function commandEvent(
   });
 }
 
+function stringField(payload: unknown, key: string) {
+  if (!payload || typeof payload !== 'object') return undefined;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
 async function latestRotationSession(): Promise<WorkoutSession | undefined> {
   const sessions = await db.workoutSessions.orderBy('startedAt').reverse().toArray();
   return sessions.find(
@@ -148,7 +154,10 @@ export function startReducedWorkout(dayId: string) {
   return startStrengthWorkout(dayId, 'REDUCED');
 }
 
-export async function startRecoverySession(dayId: string): Promise<WorkoutSession> {
+export async function startRecoverySession(
+  dayId: string,
+  recommendationId?: string,
+): Promise<WorkoutSession> {
   return db.transaction('rw', db.beyondDays, db.workoutSessions, db.events, async () => {
     const day = await db.beyondDays.get(dayId);
     if (!day || day.status !== 'ACTIVE') throw new Error('DAY_NOT_FOUND');
@@ -174,15 +183,24 @@ export async function startRecoverySession(dayId: string): Promise<WorkoutSessio
       dayId,
       commandId,
       'RECOVERY_SESSION',
-      { commandName: 'RECOVERY_SESSION' },
+      {
+        commandName: 'RECOVERY_SESSION',
+        ...(recommendationId ? { recommendationId } : {}),
+      },
       'USER',
+      recommendationId,
     );
     const recoveryStarted = commandEvent(
       'WORKOUT_STARTED',
       dayId,
       commandId,
       'RECOVERY_SESSION',
-      { commandId, sessionId: session.id, sessionType: 'RECOVERY' },
+      {
+        commandId,
+        sessionId: session.id,
+        sessionType: 'RECOVERY',
+        ...(recommendationId ? { recommendationId } : {}),
+      },
       'USER',
       started.id,
     );
@@ -429,6 +447,18 @@ export async function completeRecoverySession(
     if (session.sessionType !== 'RECOVERY') throw new Error('RECOVERY_SESSION_REQUIRED');
     if (session.status !== 'ACTIVE') return session;
 
+    const recoveryStarted = await db.events
+      .where('beyondDayId')
+      .equals(session.beyondDayId)
+      .filter(
+        (candidate) =>
+          candidate.type === 'WORKOUT_STARTED' &&
+          stringField(candidate.payload, 'sessionId') === session.id,
+      )
+      .first();
+    const recommendationId = recoveryStarted
+      ? stringField(recoveryStarted.payload, 'recommendationId')
+      : undefined;
     const status: WorkoutSession['status'] =
       durationMinutes >= 10 ? 'COMPLETED' : durationMinutes > 0 ? 'PARTIAL' : 'ABANDONED';
     const now = new Date().toISOString();
@@ -446,13 +476,21 @@ export async function completeRecoverySession(
       'COMPLETE_WORKOUT',
       { commandName: 'COMPLETE_WORKOUT' },
       'USER',
+      recoveryStarted?.id,
     );
     const domain = commandEvent(
       status === 'ABANDONED' ? 'WORKOUT_ABANDONED' : 'WORKOUT_COMPLETED',
       session.beyondDayId,
       commandId,
       'COMPLETE_WORKOUT',
-      { commandId, sessionId: session.id, status, sessionType: 'RECOVERY', durationMinutes },
+      {
+        commandId,
+        sessionId: session.id,
+        status,
+        sessionType: 'RECOVERY',
+        durationMinutes,
+        ...(recommendationId ? { recommendationId } : {}),
+      },
       'USER',
       started.id,
     );
@@ -467,6 +505,7 @@ export async function completeRecoverySession(
     );
     const outcome = assertValidOutcome({
       id: crypto.randomUUID(),
+      ...(recommendationId ? { recommendationId } : {}),
       commandExecutionId: commandId,
       beyondDayId: session.beyondDayId,
       recordedAt: now,
@@ -557,7 +596,11 @@ export async function getTrainDashboard(): Promise<TrainDashboard> {
   const guidance: ExerciseGuidance[] = [];
   for (const exercise of templateForGuidance.exercises) {
     const previous = await previousStandardSets(exercise.id, activeWorkout?.startedAt);
-    guidance.push({ exerciseId: exercise.id, previous, progression: deriveProgression(exercise, previous) });
+    guidance.push({
+      exerciseId: exercise.id,
+      previous,
+      progression: deriveProgression(exercise, previous),
+    });
   }
   const history = (
     await db.workoutSessions.orderBy('startedAt').reverse().limit(5).toArray()
