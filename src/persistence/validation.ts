@@ -67,6 +67,7 @@ export const decisionTraceSchema = z.object({
 const commandNames = [
   'START_RESET',
   'START_SHIFT_DOWN',
+  'MARK_WORK_ENDED',
   'REASSESS',
   'ENABLE_MINIMUM_DAY',
   'COMPLETE_MINIMUM_ITEM',
@@ -163,6 +164,7 @@ export const performedSetSchema = z
 const eventTypes = [
   'DAY_STARTED',
   'DAY_ENDED',
+  'WORK_PERIOD_ENDED',
   'STATE_CHECKED_IN',
   'RECOMMENDATION_ISSUED',
   'RECOMMENDATION_ACCEPTED',
@@ -222,6 +224,7 @@ const workoutClosedPayload = z.object({
 const eventPayloadSchemas: Partial<Record<EventType, z.ZodType>> = {
   DAY_STARTED: z.object({ workContext: z.enum(['WORK', 'OFF_DUTY', 'UNKNOWN']) }),
   DAY_ENDED: z.object({ commandId: uuid }).passthrough(),
+  WORK_PERIOD_ENDED: z.object({ commandId: uuid }),
   STATE_CHECKED_IN: stateCheckInPayloadSchema,
   RECOMMENDATION_ISSUED: z.object({ recommendationId: uuid, kind: z.string().min(1) }),
   RECOMMENDATION_ACCEPTED: recommendationDecisionPayload,
