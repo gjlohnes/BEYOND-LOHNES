@@ -5,17 +5,25 @@ import type { BeyondDay } from '../domain/day/types';
 import type { DecisionTrace, CommandName } from '../domain/recommendation/types';
 import { deriveCapacity } from './capacity';
 
-export const ENGINE_VERSION = '0.1.0';
+export const ENGINE_VERSION = '0.1.1';
 export interface DerivedContext { hasPlannedWork?: boolean; }
 export interface EngineInput { beyondDay: BeyondDay; latestCheckIn?: StateCheckIn; recentEvents: DomainEvent[]; context: DerivedContext; now: ISODateTime; }
 export interface RecommendationDraft { kind: string; priority: number; title: string; rationale: string; suggestedCommand?: CommandName; statusAtIssue: 'ACTION'|'NO_ACTION_REQUIRED'; }
-export interface EngineResult { derived: { capacity: 'GREEN'|'YELLOW'|'RED'|'UNKNOWN'; capacityReasons: string[] }; interpretations: string[]; primary: RecommendationDraft; trace: DecisionTrace; }
+export interface EngineResult { derived: { capacity: 'GREEN'|'YELLOW'|'RED'|'UNKNOWN'; capacityReasons: string[]; postShift: boolean }; interpretations: string[]; primary: RecommendationDraft; trace: DecisionTrace; }
+
+function hasEvent(events: DomainEvent[], type: DomainEvent['type']) {
+  return events.some((event) => event.type === type);
+}
 
 export function evaluate(input: EngineInput): EngineResult {
   const cap = input.latestCheckIn ? deriveCapacity(input.latestCheckIn) : { capacity: 'UNKNOWN' as const, reasons: ['CHECK_IN_REQUIRED'] };
+  const workEnded = input.beyondDay.workContext === 'WORK' && hasEvent(input.recentEvents, 'WORK_PERIOD_ENDED');
+  const shiftDownCompleted = hasEvent(input.recentEvents, 'SHIFT_DOWN_COMPLETED');
+  const postShift = workEnded && !shiftDownCompleted;
   const stabilize = cap.capacity === 'RED';
-  const recover = cap.capacity === 'YELLOW';
-  const execute = cap.capacity === 'GREEN' && input.context.hasPlannedWork === true;
+  const shiftDown = Boolean(input.latestCheckIn) && !stabilize && postShift;
+  const recover = cap.capacity === 'YELLOW' && !shiftDown;
+  const execute = cap.capacity === 'GREEN' && !postShift && input.context.hasPlannedWork === true;
   let primary: RecommendationDraft;
   let selectionReason: string;
 
@@ -25,9 +33,12 @@ export function evaluate(input: EngineInput): EngineResult {
   } else if (stabilize) {
     primary = { kind:'STABILIZE', priority:1, title:'Start a reset', rationale:'A severe capacity condition is present.', suggestedCommand:'START_RESET', statusAtIssue:'ACTION' };
     selectionReason='STABILIZE matched first.';
+  } else if (shiftDown) {
+    primary = { kind:'SHIFT_DOWN', priority:2, title:'Shift down', rationale:'The work period has ended. Transition out of work mode before taking on more.', suggestedCommand:'START_SHIFT_DOWN', statusAtIssue:'ACTION' };
+    selectionReason='Explicit work-ended context requires the post-shift transition.';
   } else if (recover) {
     primary = { kind:'RECOVER', priority:2, title:'Protect recovery', rationale:'Capacity is constrained.', suggestedCommand:'RECOVERY_SESSION', statusAtIssue:'ACTION' };
-    selectionReason='RECOVER matched after STABILIZE did not.';
+    selectionReason='RECOVER matched after higher-priority rules did not.';
   } else if (execute) {
     primary = { kind:'EXECUTE_PLANNED_WORK', priority:3, title:'Execute planned work', rationale:'Capacity is green and planned work exists.', statusAtIssue:'ACTION' };
     selectionReason='EXECUTE_PLANNED_WORK matched.';
@@ -39,20 +50,27 @@ export function evaluate(input: EngineInput): EngineResult {
   const trace: DecisionTrace = {
     engineVersion:ENGINE_VERSION,
     evaluatedAt:input.now,
-    inputs:[{key:'hasCheckIn',value:Boolean(input.latestCheckIn)},{key:'hasPlannedWork',value:Boolean(input.context.hasPlannedWork)}],
-    derived:[{key:'capacity',value:cap.capacity}],
+    inputs:[
+      {key:'hasCheckIn',value:Boolean(input.latestCheckIn)},
+      {key:'workContext',value:input.beyondDay.workContext},
+      {key:'workEnded',value:workEnded},
+      {key:'shiftDownCompleted',value:shiftDownCompleted},
+      {key:'hasPlannedWork',value:Boolean(input.context.hasPlannedWork)}
+    ],
+    derived:[{key:'capacity',value:cap.capacity},{key:'postShift',value:postShift}],
     matchedRules:[
       {ruleId:'STABILIZE',result:stabilize,reason:'RED capacity'},
+      {ruleId:'SHIFT_DOWN',result:shiftDown,reason:'Explicit work-ended fact without completed SHIFT DOWN'},
       {ruleId:'RECOVER',result:recover,reason:'YELLOW capacity'},
-      {ruleId:'EXECUTE_PLANNED_WORK',result:execute,reason:'GREEN capacity with planned work'}
+      {ruleId:'EXECUTE_PLANNED_WORK',result:execute,reason:'GREEN capacity with planned work outside post-shift state'}
     ],
     selectedRecommendation:primary.kind,
     selectionReason
   };
 
   return {
-    derived:{capacity:cap.capacity,capacityReasons:cap.reasons},
-    interpretations:[stabilize?'LOW_CAPACITY':recover?'RECOVERY_NEEDED':execute?'PLAN_CLEAR':'NO_CURRENT_ACTION'],
+    derived:{capacity:cap.capacity,capacityReasons:cap.reasons,postShift},
+    interpretations:[stabilize?'LOW_CAPACITY':shiftDown?'POST_SHIFT_TRANSITION':recover?'RECOVERY_NEEDED':execute?'PLAN_CLEAR':'NO_CURRENT_ACTION'],
     primary,
     trace
   };
