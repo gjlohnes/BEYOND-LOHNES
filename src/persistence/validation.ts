@@ -9,6 +9,14 @@ import type { MetaRecord } from './db';
 const uuid = z.string().uuid();
 const isoDateTime = z.string().datetime({ offset: true });
 const primitive = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const minimumItemKey = z.enum([
+  'HYDRATE',
+  'PROTEIN',
+  'MEDS',
+  'HYGIENE',
+  'MOVE',
+  'RECOVER_CONNECT',
+]);
 
 export const beyondDaySchema = z
   .object({
@@ -61,6 +69,7 @@ const commandNames = [
   'START_SHIFT_DOWN',
   'REASSESS',
   'ENABLE_MINIMUM_DAY',
+  'COMPLETE_MINIMUM_ITEM',
   'START_WORKOUT',
   'START_REDUCED_WORKOUT',
   'RECOVERY_SESSION',
@@ -122,7 +131,11 @@ export const workoutSessionSchema = z
       ctx.addIssue({ code: 'custom', message: 'Recovery session cannot claim a strength template' });
     if (session.sessionType !== 'RECOVERY' && session.durationMinutes !== undefined)
       ctx.addIssue({ code: 'custom', message: 'Strength workout does not store recovery duration' });
-    if (session.sessionType === 'RECOVERY' && session.status !== 'ACTIVE' && session.durationMinutes === undefined)
+    if (
+      session.sessionType === 'RECOVERY' &&
+      session.status !== 'ACTIVE' &&
+      session.durationMinutes === undefined
+    )
       ctx.addIssue({ code: 'custom', message: 'Closed recovery session requires duration' });
   });
 
@@ -162,6 +175,7 @@ const eventTypes = [
   'SHIFT_DOWN_STARTED',
   'SHIFT_DOWN_COMPLETED',
   'MINIMUM_DAY_ENABLED',
+  'MINIMUM_ITEM_COMPLETED',
   'WATER_LOGGED',
   'PROTEIN_ACTION_LOGGED',
   'WORKOUT_STARTED',
@@ -177,6 +191,8 @@ const resetPayload = z
   .object({ commandId: uuid, intensity: z.number().int().min(1).max(5) })
   .passthrough();
 const ritualPayload = z.object({ commandId: uuid }).passthrough();
+const minimumEnabledPayload = z.object({ commandId: uuid });
+const minimumItemPayload = z.object({ commandId: uuid, key: minimumItemKey });
 const waterPayload = z.object({ commandId: uuid, amountOz: z.number().positive() });
 const proteinPayload = z.object({ commandId: uuid, grams: z.number().positive() });
 const workoutStartedPayload = z.object({
@@ -215,6 +231,8 @@ const eventPayloadSchemas: Partial<Record<EventType, z.ZodType>> = {
   RESET_COMPLETED: ritualPayload,
   SHIFT_DOWN_STARTED: ritualPayload,
   SHIFT_DOWN_COMPLETED: ritualPayload,
+  MINIMUM_DAY_ENABLED: minimumEnabledPayload,
+  MINIMUM_ITEM_COMPLETED: minimumItemPayload,
   WATER_LOGGED: waterPayload,
   PROTEIN_ACTION_LOGGED: proteinPayload,
   WORKOUT_STARTED: workoutStartedPayload,
