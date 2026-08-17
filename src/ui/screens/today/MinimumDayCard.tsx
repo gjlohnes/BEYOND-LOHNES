@@ -18,8 +18,8 @@ export function MinimumDayCard({ dayId }: { dayId: string }) {
     try {
       setState(await enableMinimumDay(dayId));
       setStatus('MINIMUM DAY enabled for this BEYOND Day.');
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'MINIMUM DAY could not be enabled.');
+    } catch {
+      setStatus('MINIMUM DAY could not be enabled. Your existing history was not changed.');
     }
   }
 
@@ -27,8 +27,8 @@ export function MinimumDayCard({ dayId }: { dayId: string }) {
     try {
       setState(await completeMinimumItem(dayId, key));
       setStatus('Minimum recorded.');
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Minimum could not be recorded.');
+    } catch {
+      setStatus('Minimum could not be recorded. Try again.');
     }
   }
 
@@ -53,7 +53,11 @@ export function MinimumDayCard({ dayId }: { dayId: string }) {
                 {item.requirement}
                 {item.complete && item.source ? ` · ${item.source}` : ''}
               </p>
-              {!item.complete && <button onClick={() => complete(item.key)}>MARK COMPLETE</button>}
+              {!item.complete && (
+                <button aria-label={`Mark ${item.label} complete`} onClick={() => complete(item.key)}>
+                  MARK COMPLETE
+                </button>
+              )}
             </div>
           ))}
         </>
