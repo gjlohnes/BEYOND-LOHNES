@@ -4,6 +4,7 @@ import { db } from '../../src/persistence/db';
 import { getTodayState, startDay, submitCheckIn } from '../../src/application/services/dayService';
 import { completeShiftDown, startShiftDown } from '../../src/application/services/ritualService';
 import { getWorkTransitionState, markWorkEnded } from '../../src/application/services/workContextService';
+import { assertValidEvent } from '../../src/persistence/validation';
 
 beforeEach(async()=>{db.close();await db.delete();await db.open();});
 
@@ -60,5 +61,27 @@ describe('explicit work transition context',()=>{
     const resolved=await getWorkTransitionState(day.id);
     expect(resolved.postShift).toBe(false);
     expect(resolved.shiftDownCompletedAt).toBeTruthy();
+  });
+
+  it('treats same-millisecond SHIFT DOWN and shift-end facts conservatively as unresolved',async()=>{
+    const day=await startDay('WORK');
+    const occurredAt='2026-08-17T12:00:00.000Z';
+    const shiftCommandId=crypto.randomUUID();
+    const workCommandId=crypto.randomUUID();
+    await db.events.bulkAdd([
+      assertValidEvent({
+        id:crypto.randomUUID(),schemaVersion:1,type:'SHIFT_DOWN_COMPLETED',beyondDayId:day.id,
+        occurredAt,recordedAt:occurredAt,payload:{commandId:shiftCommandId},source:'USER',correlationId:shiftCommandId,
+      }),
+      assertValidEvent({
+        id:crypto.randomUUID(),schemaVersion:1,type:'WORK_PERIOD_ENDED',beyondDayId:day.id,
+        occurredAt,recordedAt:occurredAt,payload:{commandId:workCommandId},source:'USER',correlationId:workCommandId,
+      }),
+    ]);
+
+    const transition=await getWorkTransitionState(day.id);
+    expect(transition.endedAt).toBe(occurredAt);
+    expect(transition.shiftDownCompletedAt).toBe(occurredAt);
+    expect(transition.postShift).toBe(true);
   });
 });
