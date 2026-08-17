@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import {
   downloadBackup,
   downloadCurrentSafetyBackup,
@@ -15,6 +15,8 @@ function backupErrorMessage(error: unknown) {
       return 'That file is not valid JSON.';
     case 'INVALID_BACKUP_DOCUMENT':
       return 'That file is not a valid BEYOND backup.';
+    case 'INVALID_BACKUP_RELATIONSHIPS':
+      return 'That backup contains inconsistent or orphaned history and cannot be restored safely.';
     case 'UNSUPPORTED_BACKUP_FORMAT_VERSION':
       return 'That backup format is not supported by this version of BEYOND.';
     case 'UNSUPPORTED_FUTURE_DATA_SCHEMA_VERSION':
@@ -27,6 +29,7 @@ function backupErrorMessage(error: unknown) {
 }
 
 export function MoreScreen() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState('');
   const [diagnostics, setDiagnostics] = useState<Awaited<ReturnType<typeof getDiagnosticsSummary>> | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -78,6 +81,7 @@ export function MoreScreen() {
       await replaceRestore(candidate.raw, { confirmed: true, safetyExportSucceeded: true });
       setSelectedFile(null);
       setCandidate(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setStatus('Restore completed. Current data was exported first.');
       await refreshDiagnostics();
     } catch (error) {
@@ -97,7 +101,7 @@ export function MoreScreen() {
       <div className="card">
         <h2>Restore</h2>
         <p className="muted">Replace-only restoration. BEYOND validates the file and shows a preview before any data can be replaced.</p>
-        <input aria-label="Backup file" type="file" accept="application/json,.json" onChange={chooseImport} />
+        <input ref={fileInputRef} aria-label="Backup file" type="file" accept="application/json,.json" onChange={chooseImport} />
         {selectedFile && (
           <>
             <p><strong>Selected:</strong> {selectedFile.name}</p>
