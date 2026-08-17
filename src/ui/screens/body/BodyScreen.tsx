@@ -4,6 +4,7 @@ import {
   completeBodyRecovery,
   getBodyState,
   logProtein,
+  logSleep,
   logWater,
   startBodyRecovery,
   type BodyState,
@@ -13,9 +14,19 @@ const EMPTY_STATE: BodyState = {
   dayId: null,
   waterOz: 0,
   proteinGrams: 0,
+  sleepMinutes: null,
   recoveryMinutes: 0,
   activeRecoverySessionId: null,
 };
+
+function formatSleep(minutes: number | null) {
+  if (minutes === null) return 'Not logged';
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  if (hours === 0) return `${remaining} min`;
+  if (remaining === 0) return `${hours} hr`;
+  return `${hours} hr ${remaining} min`;
+}
 
 export function BodyScreen() {
   const [body, setBody] = useState<BodyState>(EMPTY_STATE);
@@ -61,6 +72,24 @@ export function BodyScreen() {
     await refresh();
   }
 
+  async function submitSleep(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!body.dayId) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const hours = Number(form.get('sleepHours'));
+    const minutes = Number(form.get('sleepMinutes'));
+    const durationMinutes = hours * 60 + minutes;
+    const result = await logSleep(body.dayId, durationMinutes);
+    if (result.status !== 'COMPLETED') {
+      setStatus(result.errorCode ?? 'Sleep log rejected.');
+      return;
+    }
+    formElement.reset();
+    setStatus(`${formatSleep(durationMinutes)} sleep logged.`);
+    await refresh();
+  }
+
   async function beginRecovery() {
     if (!body.dayId) return;
     try {
@@ -68,9 +97,11 @@ export function BodyScreen() {
       setStatus('Recovery session started.');
       await refresh();
     } catch (error) {
-      setStatus(error instanceof Error && error.message === 'WORKOUT_ALREADY_ACTIVE'
-        ? 'Finish the active TRAIN session before starting recovery.'
-        : 'Recovery session could not be started.');
+      setStatus(
+        error instanceof Error && error.message === 'WORKOUT_ALREADY_ACTIVE'
+          ? 'Finish the active TRAIN session before starting recovery.'
+          : 'Recovery session could not be started.',
+      );
     }
   }
 
@@ -122,6 +153,9 @@ export function BodyScreen() {
               <strong>Protein:</strong> {body.proteinGrams} g
             </p>
             <p>
+              <strong>Sleep:</strong> {formatSleep(body.sleepMinutes)}
+            </p>
+            <p>
               <strong>Recovery:</strong> {body.recoveryMinutes} min
             </p>
             <p className="muted">Only committed events and sessions count. No hidden daily telemetry.</p>
@@ -146,11 +180,24 @@ export function BodyScreen() {
               <button type="submit">LOG PROTEIN</button>
             </p>
           </form>
+          <form className="card" onSubmit={submitSleep}>
+            <h2>Log sleep</h2>
+            <p className="muted">Primary sleep before this BEYOND Day. Duration only.</p>
+            <label>
+              Sleep hours
+              <input name="sleepHours" type="number" min="0" max="24" step="1" inputMode="numeric" required />
+            </label>
+            <label>
+              Sleep minutes
+              <input name="sleepMinutes" type="number" min="0" max="59" step="1" inputMode="numeric" defaultValue="0" required />
+            </label>
+            <p>
+              <button type="submit">LOG SLEEP</button>
+            </p>
+          </form>
           <div className="card">
             <h2>Recovery</h2>
-            <p className="muted">
-              Easy movement or mobility. Duration is the only required input.
-            </p>
+            <p className="muted">Easy movement or mobility. Duration is the only required input.</p>
             {body.activeRecoverySessionId ? (
               <form onSubmit={submitRecovery}>
                 <label>
