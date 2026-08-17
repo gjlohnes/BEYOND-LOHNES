@@ -45,25 +45,93 @@ export interface BackupPreview {
   performedSets: number;
 }
 
+function assertUnique(values: string[]) {
+  if (new Set(values).size !== values.length) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+}
+
+function assertBackupIntegrity(document: BackupDocument): BackupDocument {
+  const { payload } = document;
+
+  assertUnique(payload.meta.map((record) => record.key));
+  assertUnique(payload.beyondDays.map((record) => record.id));
+  assertUnique(payload.events.map((record) => record.id));
+  assertUnique(payload.recommendations.map((record) => record.id));
+  assertUnique(payload.outcomes.map((record) => record.id));
+  assertUnique(payload.workoutSessions.map((record) => record.id));
+  assertUnique(payload.performedSets.map((record) => record.id));
+
+  const dayById = new Map(payload.beyondDays.map((day) => [day.id, day]));
+  const recommendationById = new Map(
+    payload.recommendations.map((recommendation) => [recommendation.id, recommendation]),
+  );
+  const sessionById = new Map(payload.workoutSessions.map((session) => [session.id, session]));
+
+  if (payload.beyondDays.filter((day) => day.status === 'ACTIVE').length > 1)
+    throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+  if (payload.workoutSessions.filter((session) => session.status === 'ACTIVE').length > 1)
+    throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+
+  for (const event of payload.events) {
+    if (event.beyondDayId && !dayById.has(event.beyondDayId))
+      throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+  }
+
+  for (const recommendation of payload.recommendations) {
+    if (!dayById.has(recommendation.beyondDayId))
+      throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+  }
+
+  for (const outcome of payload.outcomes) {
+    if (!dayById.has(outcome.beyondDayId)) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+    if (outcome.recommendationId) {
+      const recommendation = recommendationById.get(outcome.recommendationId);
+      if (!recommendation || recommendation.beyondDayId !== outcome.beyondDayId)
+        throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+    }
+  }
+
+  for (const session of payload.workoutSessions) {
+    const day = dayById.get(session.beyondDayId);
+    if (!day) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+    if (session.status === 'ACTIVE' && day.status !== 'ACTIVE')
+      throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+  }
+
+  for (const performedSet of payload.performedSets) {
+    const session = sessionById.get(performedSet.workoutSessionId);
+    if (
+      !session ||
+      !dayById.has(performedSet.beyondDayId) ||
+      session.beyondDayId !== performedSet.beyondDayId ||
+      session.sessionType === 'RECOVERY'
+    )
+      throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+  }
+
+  return document;
+}
+
 function migrateDocument(document: BackupDocument): BackupDocument {
   if (document.formatVersion !== BACKUP_FORMAT_VERSION)
     throw new Error('UNSUPPORTED_BACKUP_FORMAT_VERSION');
   if (document.dataSchemaVersion > DATA_SCHEMA_VERSION)
     throw new Error('UNSUPPORTED_FUTURE_DATA_SCHEMA_VERSION');
   if (document.dataSchemaVersion < 1) throw new Error('BACKUP_MIGRATION_NOT_AVAILABLE');
-  if (document.dataSchemaVersion === DATA_SCHEMA_VERSION) return document;
+  if (document.dataSchemaVersion === DATA_SCHEMA_VERSION) return assertBackupIntegrity(document);
   if (document.dataSchemaVersion === 1) {
     const meta = document.payload.meta.filter((record) => record.key !== 'schemaVersion');
-    return backupSchema.parse({
-      ...document,
-      dataSchemaVersion: 2,
-      payload: {
-        ...document.payload,
-        meta: [...meta, { key: 'schemaVersion', value: 2 }],
-        workoutSessions: [],
-        performedSets: [],
-      },
-    });
+    return assertBackupIntegrity(
+      backupSchema.parse({
+        ...document,
+        dataSchemaVersion: 2,
+        payload: {
+          ...document.payload,
+          meta: [...meta, { key: 'schemaVersion', value: 2 }],
+          workoutSessions: [],
+          performedSets: [],
+        },
+      }),
+    );
   }
   throw new Error('BACKUP_MIGRATION_NOT_AVAILABLE');
 }
@@ -80,22 +148,24 @@ export async function createBackupDocument(): Promise<BackupDocument> {
       db.performedSets.toArray(),
     ]);
 
-  return backupSchema.parse({
-    format: 'BEYOND_BACKUP',
-    formatVersion: BACKUP_FORMAT_VERSION,
-    exportedAt: new Date().toISOString(),
-    appVersion: APP_VERSION,
-    dataSchemaVersion: DATA_SCHEMA_VERSION,
-    payload: {
-      meta: meta.map(assertValidMeta),
-      beyondDays: beyondDays.map(assertValidBeyondDay),
-      events: events.map(assertValidEvent),
-      recommendations: recommendations.map(assertValidRecommendation),
-      outcomes: outcomes.map(assertValidOutcome),
-      workoutSessions: workoutSessions.map(assertValidWorkoutSession),
-      performedSets: performedSets.map(assertValidPerformedSet),
-    },
-  });
+  return assertBackupIntegrity(
+    backupSchema.parse({
+      format: 'BEYOND_BACKUP',
+      formatVersion: BACKUP_FORMAT_VERSION,
+      exportedAt: new Date().toISOString(),
+      appVersion: APP_VERSION,
+      dataSchemaVersion: DATA_SCHEMA_VERSION,
+      payload: {
+        meta: meta.map(assertValidMeta),
+        beyondDays: beyondDays.map(assertValidBeyondDay),
+        events: events.map(assertValidEvent),
+        recommendations: recommendations.map(assertValidRecommendation),
+        outcomes: outcomes.map(assertValidOutcome),
+        workoutSessions: workoutSessions.map(assertValidWorkoutSession),
+        performedSets: performedSets.map(assertValidPerformedSet),
+      },
+    }),
+  );
 }
 
 export async function serializeCurrentBackup() {
@@ -151,7 +221,10 @@ export async function downloadBackup(): Promise<BackupDocument> {
 
 export async function downloadCurrentSafetyBackup(): Promise<string> {
   const raw = await serializeCurrentBackup();
-  downloadText(`beyond-pre-restore-safety-${new Date().toISOString().replace(/[:.]/g, '-')}.json`, raw);
+  downloadText(
+    `beyond-pre-restore-safety-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+    raw,
+  );
   return raw;
 }
 
