@@ -1,3 +1,4 @@
+import Dexie from 'dexie';
 import { db } from '../../persistence/db';
 import { executeCommand } from '../commands/executeCommand';
 import { completeRecoverySession, startRecoverySession } from './workoutService';
@@ -24,7 +25,10 @@ export async function getBodyState(): Promise<BodyState> {
     };
 
   const [events, recoverySessions] = await Promise.all([
-    db.events.where('beyondDayId').equals(day.id).toArray(),
+    db.events
+      .where('[beyondDayId+occurredAt]')
+      .between([day.id, Dexie.minKey], [day.id, Dexie.maxKey], true, true)
+      .toArray(),
     db.workoutSessions
       .where('beyondDayId')
       .equals(day.id)
