@@ -14,6 +14,7 @@ import {
   startShiftDown,
   type ActiveRitual,
 } from '../../../application/services/ritualService';
+import { startRecoverySession } from '../../../application/services/workoutService';
 import { markWorkEnded } from '../../../application/services/workContextService';
 import type { WorkContext } from '../../../domain/common/types';
 import type { Recommendation } from '../../../domain/recommendation/types';
@@ -168,6 +169,17 @@ export function TodayScreen() {
           });
         } else {
           setStatus('Recommendation accepted, but SHIFT DOWN could not be started.');
+        }
+      } else if (
+        nextDecision === 'ACCEPT' &&
+        rec.suggestedCommand === 'RECOVERY_SESSION' &&
+        dayId
+      ) {
+        try {
+          await startRecoverySession(dayId);
+          navigate('/train');
+        } catch {
+          setStatus('Recommendation accepted, but recovery session could not be started.');
         }
       }
     } catch (error) {
