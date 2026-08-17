@@ -13,7 +13,7 @@ test('FIELD loop persists and remains deterministic offline', async ({ page, con
   await expect(page.getByRole('heading', { name: 'Start a reset' })).toBeVisible();
 
   await page.getByRole('link', { name: 'WHY' }).click();
-  await expect(page.getByText('STABILIZE')).toBeVisible();
+  await expect(page.getByText('STABILIZE: matched — RED capacity', { exact: true })).toBeVisible();
   await page.goBack();
   await page.getByRole('button', { name: 'ACCEPT' }).click();
   await expect(page).toHaveURL(/#\/reset/);
@@ -40,7 +40,7 @@ test('FIELD loop persists and remains deterministic offline', async ({ page, con
   await page.getByRole('button', { name: 'REASSESS' }).click();
   await expect(page.getByRole('heading', { name: 'No action required' })).toBeVisible();
   await page.getByRole('link', { name: 'WHY' }).click();
-  await expect(page.getByText('No higher-priority rule matched.')).toBeVisible();
+  await expect(page.getByText('No higher-priority rule matched.', { exact: true })).toBeVisible();
   await page.goBack();
   await page.getByRole('button', { name: 'END DAY' }).click();
   await page.reload();
