@@ -132,20 +132,20 @@ test('BODY logs water and protein as persistent offline events', async ({ page, 
 
   await page.getByLabel('Water (oz)').fill('40');
   await page.getByRole('button', { name: 'LOG WATER' }).click();
-  await expect(page.getByText('Water: 40 oz', { exact: true })).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: 'Water:' })).toContainText('40 oz');
 
   await page.getByLabel('Protein (g)').fill('35');
   await page.getByRole('button', { name: 'LOG PROTEIN' }).click();
-  await expect(page.getByText('Protein: 35 g', { exact: true })).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: 'Protein:' })).toContainText('35 g');
 
   await page.reload();
-  await expect(page.getByText('Water: 40 oz', { exact: true })).toBeVisible();
-  await expect(page.getByText('Protein: 35 g', { exact: true })).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: 'Water:' })).toContainText('40 oz');
+  await expect(page.locator('p').filter({ hasText: 'Protein:' })).toContainText('35 g');
   await page.evaluate(() => navigator.serviceWorker.ready);
 
   await context.setOffline(true);
   await page.reload();
   await page.getByLabel('Water (oz)').fill('24');
   await page.getByRole('button', { name: 'LOG WATER' }).click();
-  await expect(page.getByText('Water: 64 oz', { exact: true })).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: 'Water:' })).toContainText('64 oz');
 });

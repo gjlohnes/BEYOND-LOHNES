@@ -2,9 +2,14 @@ import { db } from '../../persistence/db';
 import type { DomainEvent } from '../../domain/common/events';
 import type { Outcome } from '../../domain/recommendation/types';
 import type { ResetIntensity } from '../../domain/reset/types';
+import { assertValidEvent, assertValidOutcome } from '../../persistence/validation';
 import { executeCommand } from '../commands/executeCommand';
 
-export async function startReset(dayId: string, intensity: ResetIntensity, recommendationId?: string) {
+export async function startReset(
+  dayId: string,
+  intensity: ResetIntensity,
+  recommendationId?: string,
+) {
   const command = {
     id: crypto.randomUUID(),
     name: 'START_RESET' as const,
@@ -35,47 +40,64 @@ async function completeRitual(
   const day = await db.beyondDays.get(dayId);
   if (!day || day.status !== 'ACTIVE') throw new Error('DAY_NOT_FOUND');
 
-  const existing = await db.events
-    .filter(
-      (candidate) =>
-        candidate.correlationId === commandId &&
-        candidate.type === `${kind}_COMPLETED`,
-    )
-    .first();
-  if (existing) return existing;
+  return db.transaction('rw', db.events, db.outcomes, async () => {
+    const existing = await db.events
+      .filter(
+        (candidate) =>
+          candidate.beyondDayId === dayId &&
+          candidate.correlationId === commandId &&
+          candidate.type === `${kind}_COMPLETED`,
+      )
+      .first();
+    if (existing) return existing;
 
-  const now = new Date().toISOString();
-  const completion: DomainEvent = {
-    id: crypto.randomUUID(),
-    schemaVersion: 1,
-    type: kind === 'RESET' ? 'RESET_COMPLETED' : 'SHIFT_DOWN_COMPLETED',
-    beyondDayId: dayId,
-    occurredAt: now,
-    recordedAt: now,
-    payload: { commandId, ...(recommendationId ? { recommendationId } : {}) },
-    source: 'USER',
-    correlationId: commandId,
-  };
-  const outcome: Outcome = {
-    id: crypto.randomUUID(),
-    ...(recommendationId ? { recommendationId } : {}),
-    commandExecutionId: commandId,
-    beyondDayId: dayId,
-    recordedAt: now,
-    result: 'COMPLETED',
-  };
+    const startType = kind === 'RESET' ? 'RESET_STARTED' : 'SHIFT_DOWN_STARTED';
+    const started = await db.events
+      .filter(
+        (candidate) =>
+          candidate.beyondDayId === dayId &&
+          candidate.correlationId === commandId &&
+          candidate.type === startType,
+      )
+      .first();
+    if (!started) throw new Error('RITUAL_NOT_STARTED');
 
-  await db.transaction('rw', db.events, db.outcomes, async () => {
+    const now = new Date().toISOString();
+    const completion: DomainEvent = assertValidEvent({
+      id: crypto.randomUUID(),
+      schemaVersion: 1,
+      type: kind === 'RESET' ? 'RESET_COMPLETED' : 'SHIFT_DOWN_COMPLETED',
+      beyondDayId: dayId,
+      occurredAt: now,
+      recordedAt: now,
+      payload: { commandId, ...(recommendationId ? { recommendationId } : {}) },
+      source: 'USER',
+      correlationId: commandId,
+      causationId: started.id,
+    });
+    const outcome: Outcome = assertValidOutcome({
+      id: crypto.randomUUID(),
+      ...(recommendationId ? { recommendationId } : {}),
+      commandExecutionId: commandId,
+      beyondDayId: dayId,
+      recordedAt: now,
+      result: 'COMPLETED',
+    });
+
     await db.events.add(completion);
     await db.outcomes.add(outcome);
+    return completion;
   });
-  return completion;
 }
 
 export function completeReset(dayId: string, commandId: string, recommendationId?: string) {
   return completeRitual(dayId, 'RESET', commandId, recommendationId);
 }
 
-export function completeShiftDown(dayId: string, commandId: string, recommendationId?: string) {
+export function completeShiftDown(
+  dayId: string,
+  commandId: string,
+  recommendationId?: string,
+) {
   return completeRitual(dayId, 'SHIFT_DOWN', commandId, recommendationId);
 }

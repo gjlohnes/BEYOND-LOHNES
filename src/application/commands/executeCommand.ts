@@ -34,6 +34,20 @@ function positiveNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+async function persistCommandResult(
+  command: Command,
+  result: CommandResult,
+): Promise<CommandResult> {
+  return db.transaction('rw', db.events, async () => {
+    const duplicate = await db.events
+      .filter((candidate) => candidate.correlationId === command.id)
+      .first();
+    if (duplicate) return rejected(command, 'DUPLICATE_COMMAND');
+    if (result.emittedEvents.length > 0) await db.events.bulkAdd(result.emittedEvents);
+    return result;
+  });
+}
+
 export async function executeCommand(
   command: Command,
   options: { recommendationId?: string } = {},
@@ -42,11 +56,6 @@ export async function executeCommand(
 
   const day = await db.beyondDays.get(command.beyondDayId);
   if (!day || day.status !== 'ACTIVE') return rejected(command, 'DAY_NOT_FOUND');
-
-  const duplicate = await db.events
-    .filter((candidate) => candidate.correlationId === command.id)
-    .first();
-  if (duplicate) return rejected(command, 'DUPLICATE_COMMAND');
 
   const started = event(
     'COMMAND_STARTED',
@@ -76,13 +85,12 @@ export async function executeCommand(
         { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
         started.id,
       );
-      await db.events.bulkAdd([started, aborted]);
-      return {
+      return persistCommandResult(command, {
         commandId: command.id,
         status: 'REJECTED',
         emittedEvents: [started, aborted],
         errorCode: 'INVALID_COMMAND_INPUT',
-      };
+      });
     }
     emitted.push(
       event(
@@ -120,13 +128,12 @@ export async function executeCommand(
         { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
         started.id,
       );
-      await db.events.bulkAdd([started, aborted]);
-      return {
+      return persistCommandResult(command, {
         commandId: command.id,
         status: 'REJECTED',
         emittedEvents: [started, aborted],
         errorCode: 'INVALID_COMMAND_INPUT',
-      };
+      });
     }
     emitted.push(
       event(
@@ -147,13 +154,12 @@ export async function executeCommand(
         { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
         started.id,
       );
-      await db.events.bulkAdd([started, aborted]);
-      return {
+      return persistCommandResult(command, {
         commandId: command.id,
         status: 'REJECTED',
         emittedEvents: [started, aborted],
         errorCode: 'INVALID_COMMAND_INPUT',
-      };
+      });
     }
     emitted.push(
       event(
@@ -172,13 +178,12 @@ export async function executeCommand(
       { commandName: command.name, errorCode: 'UNSUPPORTED_COMMAND' },
       started.id,
     );
-    await db.events.bulkAdd([started, aborted]);
-    return {
+    return persistCommandResult(command, {
       commandId: command.id,
       status: 'REJECTED',
       emittedEvents: [started, aborted],
       errorCode: 'UNSUPPORTED_COMMAND',
-    };
+    });
   }
 
   const completed = event(
@@ -190,6 +195,9 @@ export async function executeCommand(
   );
   emitted.push(completed);
 
-  await db.events.bulkAdd(emitted);
-  return { commandId: command.id, status: 'COMPLETED', emittedEvents: emitted };
+  return persistCommandResult(command, {
+    commandId: command.id,
+    status: 'COMPLETED',
+    emittedEvents: emitted,
+  });
 }
