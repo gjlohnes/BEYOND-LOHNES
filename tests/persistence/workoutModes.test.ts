@@ -52,4 +52,31 @@ describe('TRAIN reduced and recovery paths', () => {
     expect(completed.durationMinutes).toBe(10);
     expect(await getNextWorkoutTemplateId()).toBe('A');
   });
+
+  it('preserves recommendation attribution through a completed recovery outcome', async () => {
+    const day = await startDay('OFF_DUTY');
+    const recommendationId = crypto.randomUUID();
+    const session = await startRecoverySession(day.id, recommendationId);
+
+    const started = await db.events
+      .where('beyondDayId')
+      .equals(day.id)
+      .filter(
+        (event) =>
+          event.type === 'WORKOUT_STARTED' &&
+          (event.payload as Record<string, unknown>).sessionId === session.id,
+      )
+      .first();
+    expect((started?.payload as Record<string, unknown>).recommendationId).toBe(recommendationId);
+
+    await completeRecoverySession(session.id, 10);
+    const terminal = await db.outcomes
+      .where('recommendationId')
+      .equals(recommendationId)
+      .filter((outcome) => outcome.result === 'COMPLETED')
+      .first();
+
+    expect(terminal?.beyondDayId).toBe(day.id);
+    expect(terminal?.commandExecutionId).toBeTruthy();
+  });
 });
