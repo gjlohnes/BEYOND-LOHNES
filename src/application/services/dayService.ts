@@ -151,17 +151,20 @@ export async function submitCheckIn(
   if (commandResult.status !== 'COMPLETED')
     throw new Error(commandResult.errorCode ?? 'REASSESS_FAILED');
 
-  const recentEvents = await db.events
-    .where('[beyondDayId+occurredAt]')
-    .between([dayId, Dexie.minKey], [dayId, Dexie.maxKey])
-    .reverse()
-    .limit(25)
-    .toArray();
+  const [recentEvents, workTransition] = await Promise.all([
+    db.events
+      .where('[beyondDayId+occurredAt]')
+      .between([dayId, Dexie.minKey], [dayId, Dexie.maxKey])
+      .reverse()
+      .limit(25)
+      .toArray(),
+    getWorkTransitionState(dayId),
+  ]);
   const result = evaluate({
     beyondDay: day,
     latestCheckIn: checkIn,
     recentEvents,
-    context: {},
+    context: { postShift: workTransition.postShift },
     now,
   });
   const recommendation = assertValidRecommendation({
