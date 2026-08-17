@@ -43,6 +43,12 @@ test('FIELD loop persists and remains deterministic offline', async ({ page, con
   await expect(page.getByText('No higher-priority rule matched.', { exact: true })).toBeVisible();
   await page.goBack();
   await page.getByRole('button', { name: 'END DAY' }).click();
-  await page.reload();
   await expect(page.getByRole('button', { name: 'START DAY' })).toBeVisible();
+  await page.reload();
+  try {
+    await expect(page.getByRole('button', { name: 'START DAY' })).toBeVisible();
+  } catch (error) {
+    console.log('FINAL_OFFLINE_RELOAD_BODY:', await page.locator('body').innerText());
+    throw error;
+  }
 });
