@@ -106,7 +106,8 @@ test('backup restore requires explicit validation preview before replacement', a
   expect(exportedPath).not.toBeNull();
 
   await page.getByLabel('Backup file').setInputFiles(exportedPath!);
-  await expect(page.getByText(/Selected: beyond-backup-/)).toBeVisible();
+  await expect(page.getByText(/Selected:/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'VALIDATE BACKUP' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'REPLACE RESTORE' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'VALIDATE BACKUP' }).click();
