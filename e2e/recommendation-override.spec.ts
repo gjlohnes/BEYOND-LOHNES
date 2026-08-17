@@ -21,7 +21,7 @@ test('override to RESET records the decision and enters the selected command flo
   await expect(page.getByRole('status')).toContainText('RESET started. BODY BEFORE STORY.');
 });
 
-test('override to SHIFT DOWN records the decision and starts the selected command', async ({ page }) => {
+test('override to SHIFT DOWN records, completes, and preserves the selected command flow', async ({ page }) => {
   await page.goto('/#/today');
   await page.getByRole('button', { name: 'START DAY' }).click();
   await submitGreenCheckIn(page);
@@ -29,5 +29,12 @@ test('override to SHIFT DOWN records the decision and starts the selected comman
 
   await page.getByRole('button', { name: 'SHIFT DOWN' }).first().click();
   await expect(page.getByText('Decision: OVERRIDDEN', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'COMPLETE SHIFT DOWN' })).toBeVisible();
+  await page.getByRole('button', { name: 'COMPLETE SHIFT DOWN' }).click();
+  await expect(page.getByRole('status')).toContainText('SHIFT DOWN completed and stored.');
+
+  await page.getByRole('link', { name: 'VIEW HISTORY' }).click();
+  await expect(page.getByText('SHIFT_DOWN_COMPLETED')).toBeVisible();
+  await page.goBack();
+  await page.reload();
+  await expect(page.getByText('Decision: OVERRIDDEN', { exact: true })).toBeVisible();
 });
