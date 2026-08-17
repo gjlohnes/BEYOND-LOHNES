@@ -42,16 +42,18 @@ describe('BODY event logging', () => {
     expect(events.filter((event) => event.type === 'SLEEP_LOGGED')).toHaveLength(1);
   });
 
-  it('uses the latest sleep duration when the primary sleep fact is corrected', async () => {
+  it('preserves repeated sleep facts without erasing history', async () => {
     const day = await startDay('OFF_DUTY');
 
     expect((await logSleep(day.id, 420)).status).toBe('COMPLETED');
     expect((await logSleep(day.id, 465)).status).toBe('COMPLETED');
 
-    expect((await getBodyState()).sleepMinutes).toBe(465);
-    expect((await db.events.where('beyondDayId').equals(day.id).toArray()).filter(
-      (event) => event.type === 'SLEEP_LOGGED',
-    )).toHaveLength(2);
+    const sleepDurations = (await db.events.where('beyondDayId').equals(day.id).toArray())
+      .filter((event) => event.type === 'SLEEP_LOGGED')
+      .map((event) => (event.payload as { durationMinutes: number }).durationMinutes)
+      .sort((a, b) => a - b);
+
+    expect(sleepDurations).toEqual([420, 465]);
   });
 
   it('records recovery through the existing recovery-session domain contract', async () => {
