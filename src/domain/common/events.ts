@@ -18,6 +18,11 @@ export type EventType =
   | 'MINIMUM_DAY_ENABLED'
   | 'WATER_LOGGED'
   | 'PROTEIN_ACTION_LOGGED'
+  | 'WORKOUT_STARTED'
+  | 'WORKOUT_SET_RECORDED'
+  | 'WORKOUT_SET_SKIPPED'
+  | 'WORKOUT_COMPLETED'
+  | 'WORKOUT_ABANDONED'
   | 'NO_ACTION_RECORDED';
 
 export interface DomainEvent<T = unknown> {

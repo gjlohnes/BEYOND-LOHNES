@@ -1,5 +1,4 @@
 import type Dexie from 'dexie';
-import { DEXIE_DB_VERSION } from '../app/versions';
 
 export const V1_STORES = {
   meta: '&key',
@@ -9,9 +8,23 @@ export const V1_STORES = {
   outcomes: '&id,beyondDayId,recommendationId,recordedAt',
 } as const;
 
+export const V2_STORES = {
+  ...V1_STORES,
+  workoutSessions: '&id,beyondDayId,startedAt,status,templateId,sessionType,[beyondDayId+startedAt]',
+  performedSets: '&id,workoutSessionId,beyondDayId,exerciseId,recordedAt,[workoutSessionId+exerciseId],[exerciseId+recordedAt]',
+} as const;
+
 export function registerV1(database: Dexie) {
-  return database.version(DEXIE_DB_VERSION).stores(V1_STORES);
+  return database.version(1).stores(V1_STORES);
 }
 
-// Future released versions are appended here. Never edit a released upgrader in place.
-// The first real V2 must add a named V1 fixture and a tested upgrade function.
+export function registerV2(database: Dexie) {
+  return database
+    .version(2)
+    .stores(V2_STORES)
+    .upgrade(async (transaction) => {
+      await transaction.table('meta').put({ key: 'schemaVersion', value: 2 });
+    });
+}
+
+// Released versions are append-only. Never edit an existing upgrader in place.

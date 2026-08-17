@@ -2,8 +2,9 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { BeyondDay } from '../domain/day/types';
 import type { DomainEvent } from '../domain/common/events';
 import type { Outcome, Recommendation } from '../domain/recommendation/types';
+import type { PerformedSet, WorkoutSession } from '../domain/workout/types';
 import { APP_VERSION, BACKUP_FORMAT_VERSION, DATA_SCHEMA_VERSION, DATABASE_NAME } from '../app/versions';
-import { registerV1 } from './migrations';
+import { registerV1, registerV2 } from './migrations';
 
 export interface MetaRecord { key: string; value: unknown; }
 
@@ -13,10 +14,13 @@ export class BeyondDatabase extends Dexie {
   events!: EntityTable<DomainEvent, 'id'>;
   recommendations!: EntityTable<Recommendation, 'id'>;
   outcomes!: EntityTable<Outcome, 'id'>;
+  workoutSessions!: EntityTable<WorkoutSession, 'id'>;
+  performedSets!: EntityTable<PerformedSet, 'id'>;
 
   constructor(name = DATABASE_NAME) {
     super(name);
     registerV1(this);
+    registerV2(this);
     this.on('populate', async () => {
       const now = new Date().toISOString();
       await this.meta.bulkPut([
