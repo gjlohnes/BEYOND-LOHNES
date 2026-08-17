@@ -17,7 +17,7 @@ test('FIELD loop persists and remains deterministic offline', async ({ page, con
   await page.goBack();
   await page.getByRole('button', { name: 'ACCEPT' }).click();
   await expect(page).toHaveURL(/#\/reset/);
-  await page.getByLabel('Intensity').selectOption('5');
+  await page.getByLabel('Intensity').fill('5');
   await page.getByRole('button', { name: 'START RESET' }).click();
   await page.getByRole('button', { name: 'COMPLETE RESET' }).click();
   await page.getByRole('link', { name: 'Return to TODAY' }).click();
