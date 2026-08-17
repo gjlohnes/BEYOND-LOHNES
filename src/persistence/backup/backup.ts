@@ -65,6 +65,7 @@ function assertBackupIntegrity(document: BackupDocument): BackupDocument {
     payload.recommendations.map((recommendation) => [recommendation.id, recommendation]),
   );
   const sessionById = new Map(payload.workoutSessions.map((session) => [session.id, session]));
+  const workEndedCountByDay = new Map<string, number>();
 
   if (payload.beyondDays.filter((day) => day.status === 'ACTIVE').length > 1)
     throw new Error('INVALID_BACKUP_RELATIONSHIPS');
@@ -74,6 +75,15 @@ function assertBackupIntegrity(document: BackupDocument): BackupDocument {
   for (const event of payload.events) {
     if (event.beyondDayId && !dayById.has(event.beyondDayId))
       throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+
+    if (event.type === 'WORK_PERIOD_ENDED') {
+      if (!event.beyondDayId) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+      const day = dayById.get(event.beyondDayId);
+      if (!day || day.workContext !== 'WORK') throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+      const nextCount = (workEndedCountByDay.get(event.beyondDayId) ?? 0) + 1;
+      if (nextCount > 1) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+      workEndedCountByDay.set(event.beyondDayId, nextCount);
+    }
   }
 
   for (const recommendation of payload.recommendations) {
