@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-async function submitGreenCheckIn(page: Parameters<typeof test>[0] extends never ? never : any) {
+async function submitGreenCheckIn(page: Page) {
   await page.locator('input[name="energy"]').fill('5');
   await page.locator('input[name="stress"]').fill('1');
   await page.locator('input[name="mood"]').fill('5');
