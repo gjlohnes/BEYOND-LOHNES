@@ -93,3 +93,31 @@ test('a decided recommendation restores its decision state after reload', async 
   await expect(page.getByRole('button', { name: 'DISMISS' })).toHaveCount(0);
   await expect(page.getByText('RECOMMENDATION_ALREADY_DECIDED')).toHaveCount(0);
 });
+
+test('backup restore requires explicit validation preview before replacement', async ({ page }) => {
+  await page.goto('/#/today');
+  await page.getByRole('button', { name: 'START DAY' }).click();
+  await page.getByRole('link', { name: 'MORE' }).click();
+
+  const exportDownloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'EXPORT BACKUP' }).click();
+  const exportDownload = await exportDownloadPromise;
+  const exportedPath = await exportDownload.path();
+  expect(exportedPath).not.toBeNull();
+
+  await page.getByLabel('Backup file').setInputFiles(exportedPath!);
+  await expect(page.getByText(/Selected: beyond-backup-/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'REPLACE RESTORE' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'VALIDATE BACKUP' }).click();
+  await expect(page.getByText('Backup valid.', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Days 1 · Events/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'REPLACE RESTORE' })).toBeVisible();
+
+  page.once('dialog', (dialog) => dialog.accept());
+  const safetyDownloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'REPLACE RESTORE' }).click();
+  const safetyDownload = await safetyDownloadPromise;
+  expect(safetyDownload.suggestedFilename()).toContain('beyond-pre-restore-safety-');
+  await expect(page.getByText('Restore completed. Current data was exported first.', { exact: true })).toBeVisible();
+});
