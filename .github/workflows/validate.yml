@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
     branches:
-      - agent/v0.1-foundation-field-001
+      - main
 
 jobs:
   validate:
