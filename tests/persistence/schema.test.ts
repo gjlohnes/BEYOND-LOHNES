@@ -8,16 +8,24 @@ beforeEach(async () => {
   await db.open();
 });
 
-describe('Dexie V1 schema', () => {
-  it('opens the locked V1 tables without destructive migration behavior', () => {
-    expect(db.verno).toBe(1);
+describe('Dexie V2 schema', () => {
+  it('opens the additive V2 tables while retaining the released V1 stores', () => {
+    expect(db.verno).toBe(2);
     expect(db.tables.map((table) => table.name).sort()).toEqual(
-      ['beyondDays', 'events', 'meta', 'outcomes', 'recommendations'].sort(),
+      [
+        'beyondDays',
+        'events',
+        'meta',
+        'outcomes',
+        'performedSets',
+        'recommendations',
+        'workoutSessions',
+      ].sort(),
     );
   });
 
-  it('reopens the released V1 schema without wiping existing records', async () => {
-    const name = `beyond-v1-reopen-${crypto.randomUUID()}`;
+  it('reopens the current schema without wiping existing records', async () => {
+    const name = `beyond-v2-reopen-${crypto.randomUUID()}`;
     const first = new BeyondDatabase(name);
     await first.open();
     const now = new Date().toISOString();
