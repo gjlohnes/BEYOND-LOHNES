@@ -11,7 +11,7 @@ PR #1 remains draft and unmerged.
 - Deterministic capacity and Engine priority with first-class NO ACTION REQUIRED.
 - Explicit START DAY / END DAY wake-to-sleep lifecycle, active-day recovery, concurrent-close safety, and meaningful event history.
 - Explicit work lifecycle: START WORK DAY establishes WORK context; SHIFT ENDED executes MARK_WORK_ENDED and records one WORK_PERIOD_ENDED fact. BEYOND never infers shift end from clock time, schedule, location, or inactivity.
-- Post-shift state is derived outside the Engine from ordered committed history. A SHIFT DOWN completed before work ends cannot satisfy the later post-shift transition. RED capacity still takes priority; otherwise unresolved post-shift context deterministically recommends SHIFT DOWN.
+- Post-shift state is derived outside the Engine from ordered committed history. A SHIFT DOWN completed before work ends cannot satisfy the later post-shift transition. Equal timestamps are handled conservatively as unresolved rather than accidentally treating an ambiguous completion as post-shift evidence. RED capacity still takes priority; otherwise unresolved post-shift context deterministically recommends SHIFT DOWN.
 - A new WORK_PERIOD_ENDED fact makes a recommendation issued before that transition stale as current guidance without deleting historical recommendation evidence.
 - END DAY refuses to strand an active RESET, SHIFT DOWN, workout, or recovery session; the user must resolve the active flow explicitly rather than BEYOND silently abandoning it.
 - Persisted REASSESS, RESET, SHIFT DOWN, MARK_WORK_ENDED, LOG_WATER, PROTEIN_ACTION, LOG_SLEEP, MINIMUM DAY, and TRAIN domain operations with validation and duplicate-command protection where applicable.
@@ -25,7 +25,7 @@ PR #1 remains draft and unmerged.
 - WORK_PERIOD_ENDED is event-first and required no Dexie V3 or backup-format change. Existing backups remain compatible because the new fact is additive within the existing event stream.
 - BEYOND_BACKUP format v1 remains application-owned; data schema v2 adds TRAIN arrays and in-memory migration for v1 backups rather than rejecting or dropping old history.
 - Replace-only restoration requires explicit file selection, explicit validation, record-count preview, explicit confirmation, and a pre-restore safety export before transactional replacement.
-- Backup validation rejects schema-valid but internally inconsistent history before preview/restore: duplicate record identities, orphaned BeyondDay/recommendation references, invalid outcome relationships, mismatched workout/performed-set relationships, multiple active days/sessions, and active workout sessions attached to completed days.
+- Backup validation rejects schema-valid but internally inconsistent history before preview/restore: duplicate record identities, orphaned BeyondDay/recommendation references, invalid outcome relationships, mismatched workout/performed-set relationships, multiple active days/sessions, active workout sessions attached to completed days, duplicate WORK_PERIOD_ENDED facts, and WORK_PERIOD_ENDED facts attached to non-WORK days.
 - Invalid/corrupt backup UX is user-facing and does not expose raw internal error codes.
 - Local diagnostics include application/data/Dexie/backup/Engine versions and TRAIN record counts.
 - PWA manifest, near-black theme/background, 192/512/maskable icons, generateSW precache, and prompt update mode.
@@ -51,10 +51,10 @@ PR #1 remains draft and unmerged.
 - PR #1 remains intentionally draft until that real-device restore round trip and final diff review are complete.
 
 ## VALIDATION
-Implementation head `767ce50a1e7296841e75d64a1b94c1025ea65768` passed Node 24 PR validation run 261:
+Implementation head `ca0fb968101c63adf82c9329d42df80a109761c3` passed Node 24 validation and production-preview acceptance:
 - `npm ci`: PASS; 486 packages audited and 0 vulnerabilities reported during CI install.
 - ESLint: PASS.
-- Vitest: **18 files / 58 tests PASS**.
+- Vitest: **18 files / 60 tests PASS**.
 - TypeScript + Vite production PWA build: PASS.
 - PWA generateSW: PASS; 7 application-shell entries precached.
 - Playwright production-preview acceptance: **14/14 PASS**.
@@ -62,11 +62,11 @@ Implementation head `767ce50a1e7296841e75d64a1b94c1025ea65768` passed Node 24 PR
 
 Automated coverage now proves:
 - START DAY / START WORK DAY / SHIFT ENDED / END DAY lifecycle and active-flow close protection.
-- explicit WORK_PERIOD_ENDED persistence, duplicate rejection, non-WORK rejection, recommendation invalidation after context change, and ordered post-shift satisfaction semantics.
+- explicit WORK_PERIOD_ENDED persistence, duplicate rejection, non-WORK rejection, recommendation invalidation after context change, ordered post-shift satisfaction semantics, and conservative same-millisecond handling.
 - deterministic post-shift SHIFT DOWN while preserving RESET priority under RED capacity.
 - deterministic REASSESS, one recommendation, WHY, decision restoration, RESET / SHIFT DOWN, override execution, and ritual reload recovery.
 - reload persistence and service-worker-backed offline operation.
-- backup envelope/record validation, v1→v2 compatibility migration, cross-record relationship integrity, replace-restore safety, rollback behavior, and sleep/TRAIN preservation.
+- backup envelope/record validation, v1→v2 compatibility migration, cross-record relationship integrity, impossible work-transition rejection, replace-restore safety, rollback behavior, and sleep/TRAIN preservation.
 - BODY water/protein/sleep persistence plus BODY recovery duration, including offline reload.
 - TRAIN V1→V2 migration, A/B/C rotation, performed-set truth, progression derivation, STANDARD / REDUCED / RECOVERY semantics, browser flows, reload persistence, and offline reload.
 - MINIMUM DAY enablement, automatic water/protein derivation, generic manual completion privacy boundary, reload persistence, and offline persistence.
@@ -74,7 +74,7 @@ Automated coverage now proves:
 ## APPLIED DECISIONS
 Canonical Spec remains product authority. Decision Register, Implementation Roadmap, and V0.1 Foundation Build Spec guide implementation beneath it.
 
-The work-transition contract is now explicitly recorded in the Canonical Spec, Decision Register, and Foundation Build Spec:
+The work-transition contract is explicitly recorded in the Canonical Spec, Decision Register, and Foundation Build Spec:
 - work context is explicit;
 - shift end is a user-recorded meaningful fact, never hidden inference;
 - post-shift requirement is derived from ordered history outside the Engine;
