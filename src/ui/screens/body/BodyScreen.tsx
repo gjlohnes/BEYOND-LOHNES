@@ -1,13 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  completeBodyRecovery,
   getBodyState,
   logProtein,
   logWater,
+  startBodyRecovery,
   type BodyState,
 } from '../../../application/services/bodyService';
 
-const EMPTY_STATE: BodyState = { dayId: null, waterOz: 0, proteinGrams: 0 };
+const EMPTY_STATE: BodyState = {
+  dayId: null,
+  waterOz: 0,
+  proteinGrams: 0,
+  recoveryMinutes: 0,
+  activeRecoverySessionId: null,
+};
 
 export function BodyScreen() {
   const [body, setBody] = useState<BodyState>(EMPTY_STATE);
@@ -53,6 +61,41 @@ export function BodyScreen() {
     await refresh();
   }
 
+  async function beginRecovery() {
+    if (!body.dayId) return;
+    try {
+      await startBodyRecovery(body.dayId);
+      setStatus('Recovery session started.');
+      await refresh();
+    } catch (error) {
+      setStatus(error instanceof Error && error.message === 'WORKOUT_ALREADY_ACTIVE'
+        ? 'Finish the active TRAIN session before starting recovery.'
+        : 'Recovery session could not be started.');
+    }
+  }
+
+  async function submitRecovery(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!body.activeRecoverySessionId) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const durationMinutes = Number(form.get('recoveryMinutes'));
+    try {
+      const session = await completeBodyRecovery(body.activeRecoverySessionId, durationMinutes);
+      formElement.reset();
+      setStatus(
+        session.status === 'COMPLETED'
+          ? `${durationMinutes} min recovery logged.`
+          : session.status === 'PARTIAL'
+            ? `${durationMinutes} min recovery logged as partial.`
+            : 'Recovery session ended with no movement logged.',
+      );
+      await refresh();
+    } catch {
+      setStatus('Recovery duration must be a whole number of minutes, 0 or greater.');
+    }
+  }
+
   return (
     <section>
       <div className="eyebrow">BODY</div>
@@ -78,7 +121,10 @@ export function BodyScreen() {
             <p>
               <strong>Protein:</strong> {body.proteinGrams} g
             </p>
-            <p className="muted">Only committed events count. No hidden daily telemetry.</p>
+            <p>
+              <strong>Recovery:</strong> {body.recoveryMinutes} min
+            </p>
+            <p className="muted">Only committed events and sessions count. No hidden daily telemetry.</p>
           </div>
           <form className="card" onSubmit={submitWater}>
             <h2>Log water</h2>
@@ -100,6 +146,34 @@ export function BodyScreen() {
               <button type="submit">LOG PROTEIN</button>
             </p>
           </form>
+          <div className="card">
+            <h2>Recovery</h2>
+            <p className="muted">
+              Easy movement or mobility. Duration is the only required input.
+            </p>
+            {body.activeRecoverySessionId ? (
+              <form onSubmit={submitRecovery}>
+                <label>
+                  Recovery minutes
+                  <input
+                    name="recoveryMinutes"
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    required
+                  />
+                </label>
+                <p>
+                  <button type="submit">END & LOG RECOVERY</button>
+                </p>
+              </form>
+            ) : (
+              <button type="button" onClick={() => void beginRecovery()}>
+                START RECOVERY
+              </button>
+            )}
+          </div>
         </>
       )}
     </section>
