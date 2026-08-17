@@ -3,6 +3,7 @@ import type { ISODateTime, Primitive, UUID } from '../common/types';
 export type CommandName =
   | 'START_RESET'
   | 'START_SHIFT_DOWN'
+  | 'MARK_WORK_ENDED'
   | 'REASSESS'
   | 'ENABLE_MINIMUM_DAY'
   | 'COMPLETE_MINIMUM_ITEM'
