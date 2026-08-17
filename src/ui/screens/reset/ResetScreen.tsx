@@ -19,20 +19,28 @@ export function ResetScreen() {
 
   async function begin() {
     if (!dayId) return;
-    const result = await startReset(dayId, intensity, recommendationId);
-    if (result.status === 'COMPLETED') {
-      setCommandId(result.commandId);
-      setStatus('RESET started. BODY BEFORE STORY.');
-    } else {
-      setStatus(`RESET not started: ${result.errorCode ?? 'unknown error'}`);
+    try {
+      const result = await startReset(dayId, intensity, recommendationId);
+      if (result.status === 'COMPLETED') {
+        setCommandId(result.commandId);
+        setStatus('RESET started. BODY BEFORE STORY.');
+      } else {
+        setStatus('RESET could not be started.');
+      }
+    } catch {
+      setStatus('RESET could not be started. Your existing history was not changed.');
     }
   }
 
   async function complete() {
     if (!dayId || !commandId) return;
-    await completeReset(dayId, commandId, recommendationId);
-    setStatus('RESET completed and stored.');
-    setCommandId(null);
+    try {
+      await completeReset(dayId, commandId, recommendationId);
+      setStatus('RESET completed and stored.');
+      setCommandId(null);
+    } catch {
+      setStatus('RESET could not be completed. Your existing history remains stored.');
+    }
   }
 
   return (
@@ -67,7 +75,7 @@ export function ResetScreen() {
                 <button onClick={complete}>COMPLETE RESET</button>
               )}
             </p>
-            <p className="muted">{status}</p>
+            {status && <p role="status" className="muted">{status}</p>}
           </div>
           <Link to="/today">Return to TODAY</Link>
         </>
