@@ -176,7 +176,7 @@ export function TodayScreen() {
         dayId
       ) {
         try {
-          await startRecoverySession(dayId);
+          await startRecoverySession(dayId, rec.id);
           navigate('/train');
         } catch {
           setStatus('Recommendation accepted, but recovery session could not be started.');
@@ -230,7 +230,11 @@ export function TodayScreen() {
     try {
       const result = await startShiftDown(dayId);
       if (result.status === 'COMPLETED') {
-        setShiftDown({ kind: 'SHIFT_DOWN', commandId: result.commandId, startedAt: new Date().toISOString() });
+        setShiftDown({
+          kind: 'SHIFT_DOWN',
+          commandId: result.commandId,
+          startedAt: new Date().toISOString(),
+        });
         setStatus('SHIFT DOWN started and stored.');
       } else {
         setStatus('SHIFT DOWN could not be started.');
@@ -255,7 +259,11 @@ export function TodayScreen() {
     <section>
       <div className="eyebrow">BEYOND // TODAY</div>
       <h1>Command</h1>
-      {status && <p role="status" className="card">{status}</p>}
+      {status && (
+        <p role="status" className="card">
+          {status}
+        </p>
+      )}
       {!dayId ? (
         <div className="card">
           <h2>No active day</h2>
@@ -267,15 +275,24 @@ export function TodayScreen() {
         <>
           <div className="card">
             <p className="muted">
-              Context: {workContext === 'WORK' ? (workEnded ? 'WORK · POST SHIFT' : 'WORK · ACTIVE') : workContext ?? 'UNKNOWN'}
+              Context:{' '}
+              {workContext === 'WORK'
+                ? workEnded
+                  ? 'WORK · POST SHIFT'
+                  : 'WORK · ACTIVE'
+                : workContext ?? 'UNKNOWN'}
             </p>
             <h2>{rec?.title ?? 'State check-in required'}</h2>
             <p>{rec?.rationale ?? 'Record current state to produce one deterministic recommendation.'}</p>
             {rec && (
               <>
-                <p><Link to={`/why/${rec.id}`}>WHY</Link></p>
+                <p>
+                  <Link to={`/why/${rec.id}`}>WHY</Link>
+                </p>
                 {decision ? (
-                  <p><strong>Decision: {decisionLabel(decision)}</strong></p>
+                  <p>
+                    <strong>Decision: {decisionLabel(decision)}</strong>
+                  </p>
                 ) : (
                   <>
                     {rec.statusAtIssue === 'NO_ACTION_REQUIRED' ? (
@@ -313,25 +330,37 @@ export function TodayScreen() {
                 </label>
               ))}
             </div>
-            <p><button type="submit">REASSESS</button></p>
+            <p>
+              <button type="submit">REASSESS</button>
+            </p>
           </form>
 
           <div className="card">
             <h2>Context actions</h2>
             {workContext === 'WORK' && !workEnded && (
-              <p><button onClick={finishWorkPeriod}>SHIFT ENDED</button></p>
+              <p>
+                <button onClick={finishWorkPeriod}>SHIFT ENDED</button>
+              </p>
             )}
-            <p><Link to="/reset">I NEED A RESET</Link></p>
+            <p>
+              <Link to="/reset">I NEED A RESET</Link>
+            </p>
             {!shiftDown ? (
               <button onClick={beginShiftDown}>SHIFT DOWN</button>
             ) : (
               <>
                 <p className="muted">SHIFT DOWN in progress.</p>
-                <ol>{getShiftDownSteps().map((step) => <li key={step.id}>{step.label}</li>)}</ol>
+                <ol>
+                  {getShiftDownSteps().map((step) => (
+                    <li key={step.id}>{step.label}</li>
+                  ))}
+                </ol>
                 <button onClick={finishShiftDown}>COMPLETE SHIFT DOWN</button>
               </>
             )}
-            <p><Link to={`/history/${dayId}`}>VIEW HISTORY</Link></p>
+            <p>
+              <Link to={`/history/${dayId}`}>VIEW HISTORY</Link>
+            </p>
           </div>
 
           <MinimumDayCard dayId={dayId} />
