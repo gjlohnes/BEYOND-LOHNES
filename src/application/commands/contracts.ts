@@ -9,11 +9,14 @@ export type DomainErrorCode =
   | 'NO_ACTIVE_DAY'
   | 'INVALID_COMMAND_INPUT'
   | 'DUPLICATE_COMMAND'
-  | 'UNSUPPORTED_COMMAND';
+  | 'UNSUPPORTED_COMMAND'
+  | 'WORK_CONTEXT_REQUIRED'
+  | 'WORK_ALREADY_ENDED';
 
 export type CommandInput =
   | { name: 'START_RESET'; input: { intensity: ResetIntensity } }
   | { name: 'START_SHIFT_DOWN'; input: Record<string, never> }
+  | { name: 'MARK_WORK_ENDED'; input: Record<string, never> }
   | {
       name: 'REASSESS';
       input: Omit<StateCheckIn, 'id' | 'beyondDayId' | 'recordedAt'>;
@@ -26,6 +29,7 @@ export type CommandInput =
         CommandName,
         | 'START_RESET'
         | 'START_SHIFT_DOWN'
+        | 'MARK_WORK_ENDED'
         | 'REASSESS'
         | 'LOG_WATER'
         | 'PROTEIN_ACTION'
