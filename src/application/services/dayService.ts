@@ -6,6 +6,16 @@ import { evaluate } from '../../engine/evaluate';
 import { assertValidBeyondDay, assertValidEvent, assertValidRecommendation, stateCheckInInputSchema, stateCheckInPayloadSchema } from '../../persistence/validation';
 import { executeCommand } from '../commands/executeCommand';
 
+export type PersistedRecommendationDecision = 'ACCEPT' | 'DISMISS' | 'OVERRIDE' | 'NO_ACTION';
+
+function recommendationDecisionFromEventType(type: string): PersistedRecommendationDecision | null {
+  if (type === 'RECOMMENDATION_ACCEPTED') return 'ACCEPT';
+  if (type === 'RECOMMENDATION_DISMISSED') return 'DISMISS';
+  if (type === 'RECOMMENDATION_OVERRIDDEN') return 'OVERRIDE';
+  if (type === 'NO_ACTION_RECORDED') return 'NO_ACTION';
+  return null;
+}
+
 export async function startDay(workContext: WorkContext) {
   const active = await db.beyondDays.where('status').equals('ACTIVE').first();
   if (active) return assertValidBeyondDay(active);
@@ -91,8 +101,21 @@ export async function submitCheckIn(dayId: string, values: Omit<StateCheckIn, 'i
 
 export async function getTodayState() {
   const dayRaw = await db.beyondDays.where('status').equals('ACTIVE').first();
-  if (!dayRaw) return { day: null, recommendation: null };
+  if (!dayRaw) return { day: null, recommendation: null, recommendationDecision: null };
   const day = assertValidBeyondDay(dayRaw);
   const recommendationRaw = await db.recommendations.where('[beyondDayId+issuedAt]').between([day.id, Dexie.minKey], [day.id, Dexie.maxKey]).last();
-  return { day, recommendation: recommendationRaw ? assertValidRecommendation(recommendationRaw) : null };
+  const recommendation = recommendationRaw ? assertValidRecommendation(recommendationRaw) : null;
+  if (!recommendation) return { day, recommendation: null, recommendationDecision: null };
+
+  const decisionEvent = await db.events
+    .where('beyondDayId')
+    .equals(day.id)
+    .filter((candidate) => candidate.causationId === recommendation.id && recommendationDecisionFromEventType(candidate.type) !== null)
+    .first();
+
+  return {
+    day,
+    recommendation,
+    recommendationDecision: decisionEvent ? recommendationDecisionFromEventType(decisionEvent.type) : null,
+  };
 }
