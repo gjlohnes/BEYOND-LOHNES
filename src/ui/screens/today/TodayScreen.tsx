@@ -91,8 +91,12 @@ export function TodayScreen() {
       setDecision(null);
       setShiftDown(null);
       setStatus('BEYOND Day ended.');
-    } catch {
-      setStatus('BEYOND Day could not be ended. Existing local history remains available.');
+    } catch (error) {
+      setStatus(
+        error instanceof Error && error.message === 'ACTIVE_FLOW_EXISTS'
+          ? 'Finish the active RESET, SHIFT DOWN, workout, or recovery session before ending this BEYOND Day.'
+          : 'BEYOND Day could not be ended. Existing local history remains available.',
+      );
     }
   }
 
@@ -190,11 +194,7 @@ export function TodayScreen() {
     try {
       const result = await startShiftDown(dayId);
       if (result.status === 'COMPLETED') {
-        setShiftDown({
-          kind: 'SHIFT_DOWN',
-          commandId: result.commandId,
-          startedAt: new Date().toISOString(),
-        });
+        setShiftDown({ kind: 'SHIFT_DOWN', commandId: result.commandId, startedAt: new Date().toISOString() });
         setStatus('SHIFT DOWN started and stored.');
       } else {
         setStatus('SHIFT DOWN could not be started.');
