@@ -56,57 +56,60 @@ export async function startDay(workContext: WorkContext) {
 }
 
 export async function endDay(dayId: string) {
-  const day = await db.beyondDays.get(dayId);
-  if (!day) throw new Error('DAY_NOT_FOUND');
-  if (day.status === 'COMPLETED') return assertValidBeyondDay(day);
-  const now = new Date().toISOString();
-  const commandId = crypto.randomUUID();
-  const completed = assertValidBeyondDay({
-    ...day,
-    status: 'COMPLETED',
-    endedAt: now,
-    updatedAt: now,
-  });
-  const started = assertValidEvent({
-    id: crypto.randomUUID(),
-    schemaVersion: 1,
-    type: 'COMMAND_STARTED',
-    beyondDayId: dayId,
-    occurredAt: now,
-    recordedAt: now,
-    payload: { commandName: 'END_DAY' },
-    source: 'USER',
-    correlationId: commandId,
-  });
-  const ended = assertValidEvent({
-    id: crypto.randomUUID(),
-    schemaVersion: 1,
-    type: 'DAY_ENDED',
-    beyondDayId: dayId,
-    occurredAt: now,
-    recordedAt: now,
-    payload: { commandId },
-    source: 'USER',
-    correlationId: commandId,
-    causationId: started.id,
-  });
-  const commandCompleted = assertValidEvent({
-    id: crypto.randomUUID(),
-    schemaVersion: 1,
-    type: 'COMMAND_COMPLETED',
-    beyondDayId: dayId,
-    occurredAt: now,
-    recordedAt: now,
-    payload: { commandName: 'END_DAY' },
-    source: 'SYSTEM',
-    correlationId: commandId,
-    causationId: started.id,
-  });
-  await db.transaction('rw', db.beyondDays, db.events, async () => {
+  return db.transaction('rw', db.beyondDays, db.events, async () => {
+    const dayRaw = await db.beyondDays.get(dayId);
+    if (!dayRaw) throw new Error('DAY_NOT_FOUND');
+    const day = assertValidBeyondDay(dayRaw);
+    if (day.status === 'COMPLETED') return day;
+
+    const now = new Date().toISOString();
+    const commandId = crypto.randomUUID();
+    const completed = assertValidBeyondDay({
+      ...day,
+      status: 'COMPLETED',
+      endedAt: now,
+      updatedAt: now,
+    });
+    const started = assertValidEvent({
+      id: crypto.randomUUID(),
+      schemaVersion: 1,
+      type: 'COMMAND_STARTED',
+      beyondDayId: dayId,
+      occurredAt: now,
+      recordedAt: now,
+      payload: { commandName: 'END_DAY' },
+      source: 'USER',
+      correlationId: commandId,
+    });
+    const ended = assertValidEvent({
+      id: crypto.randomUUID(),
+      schemaVersion: 1,
+      type: 'DAY_ENDED',
+      beyondDayId: dayId,
+      occurredAt: now,
+      recordedAt: now,
+      payload: { commandId },
+      source: 'USER',
+      correlationId: commandId,
+      causationId: started.id,
+    });
+    const commandCompleted = assertValidEvent({
+      id: crypto.randomUUID(),
+      schemaVersion: 1,
+      type: 'COMMAND_COMPLETED',
+      beyondDayId: dayId,
+      occurredAt: now,
+      recordedAt: now,
+      payload: { commandName: 'END_DAY' },
+      source: 'SYSTEM',
+      correlationId: commandId,
+      causationId: started.id,
+    });
+
     await db.beyondDays.put(completed);
     await db.events.bulkAdd([started, ended, commandCompleted]);
+    return completed;
   });
-  return completed;
 }
 
 export async function submitCheckIn(

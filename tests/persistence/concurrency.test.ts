@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { executeCommand } from '../../src/application/commands/executeCommand';
 import {
+  endDay,
   startDay,
   submitCheckIn,
 } from '../../src/application/services/dayService';
@@ -28,6 +29,16 @@ describe('rapid-action persistence safety', () => {
     expect(second.id).toBe(first.id);
     expect(await db.beyondDays.where('status').equals('ACTIVE').count()).toBe(1);
     expect(await db.events.where('type').equals('DAY_STARTED').count()).toBe(1);
+  });
+
+  it('serializes concurrent END DAY requests into one lifecycle close', async () => {
+    const day = await startDay('WORK');
+    const [first, second] = await Promise.all([endDay(day.id), endDay(day.id)]);
+
+    expect(first.status).toBe('COMPLETED');
+    expect(second.status).toBe('COMPLETED');
+    expect(second.endedAt).toBe(first.endedAt);
+    expect(await db.events.where('type').equals('DAY_ENDED').count()).toBe(1);
   });
 
   it('persists a command ID only once when the same command races itself', async () => {
