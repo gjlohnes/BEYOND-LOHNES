@@ -44,32 +44,38 @@ export function BodyScreen() {
     event.preventDefault();
     if (!body.dayId) return;
     const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const amountOz = Number(form.get('waterOz'));
-    const result = await logWater(body.dayId, amountOz);
-    if (result.status !== 'COMPLETED') {
-      setStatus(result.errorCode ?? 'Water log rejected.');
-      return;
+    const amountOz = Number(new FormData(formElement).get('waterOz'));
+    try {
+      const result = await logWater(body.dayId, amountOz);
+      if (result.status !== 'COMPLETED') {
+        setStatus('Water could not be logged. Enter an amount greater than zero and try again.');
+        return;
+      }
+      formElement.reset();
+      setStatus(`${amountOz} oz water logged.`);
+      await refresh();
+    } catch {
+      setStatus('Water could not be logged. Your existing history was not changed.');
     }
-    formElement.reset();
-    setStatus(`${amountOz} oz water logged.`);
-    await refresh();
   }
 
   async function submitProtein(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!body.dayId) return;
     const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const grams = Number(form.get('proteinGrams'));
-    const result = await logProtein(body.dayId, grams);
-    if (result.status !== 'COMPLETED') {
-      setStatus(result.errorCode ?? 'Protein log rejected.');
-      return;
+    const grams = Number(new FormData(formElement).get('proteinGrams'));
+    try {
+      const result = await logProtein(body.dayId, grams);
+      if (result.status !== 'COMPLETED') {
+        setStatus('Protein could not be logged. Enter an amount greater than zero and try again.');
+        return;
+      }
+      formElement.reset();
+      setStatus(`${grams} g protein logged.`);
+      await refresh();
+    } catch {
+      setStatus('Protein could not be logged. Your existing history was not changed.');
     }
-    formElement.reset();
-    setStatus(`${grams} g protein logged.`);
-    await refresh();
   }
 
   async function submitSleep(event: FormEvent<HTMLFormElement>) {
@@ -80,14 +86,18 @@ export function BodyScreen() {
     const hours = Number(form.get('sleepHours'));
     const minutes = Number(form.get('sleepMinutes'));
     const durationMinutes = hours * 60 + minutes;
-    const result = await logSleep(body.dayId, durationMinutes);
-    if (result.status !== 'COMPLETED') {
-      setStatus(result.errorCode ?? 'Sleep log rejected.');
-      return;
+    try {
+      const result = await logSleep(body.dayId, durationMinutes);
+      if (result.status !== 'COMPLETED') {
+        setStatus('Sleep could not be logged. Enter a primary-sleep duration greater than zero.');
+        return;
+      }
+      formElement.reset();
+      setStatus(`${formatSleep(durationMinutes)} sleep logged.`);
+      await refresh();
+    } catch {
+      setStatus('Sleep could not be logged. Your existing history was not changed.');
     }
-    formElement.reset();
-    setStatus(`${formatSleep(durationMinutes)} sleep logged.`);
-    await refresh();
   }
 
   async function beginRecovery() {
@@ -109,8 +119,7 @@ export function BodyScreen() {
     event.preventDefault();
     if (!body.activeRecoverySessionId) return;
     const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const durationMinutes = Number(form.get('recoveryMinutes'));
+    const durationMinutes = Number(new FormData(formElement).get('recoveryMinutes'));
     try {
       const session = await completeBodyRecovery(body.activeRecoverySessionId, durationMinutes);
       formElement.reset();
@@ -146,18 +155,10 @@ export function BodyScreen() {
         <>
           <div className="card">
             <h2>Current day</h2>
-            <p>
-              <strong>Water:</strong> {body.waterOz} oz
-            </p>
-            <p>
-              <strong>Protein:</strong> {body.proteinGrams} g
-            </p>
-            <p>
-              <strong>Sleep:</strong> {formatSleep(body.sleepMinutes)}
-            </p>
-            <p>
-              <strong>Recovery:</strong> {body.recoveryMinutes} min
-            </p>
+            <p><strong>Water:</strong> {body.waterOz} oz</p>
+            <p><strong>Protein:</strong> {body.proteinGrams} g</p>
+            <p><strong>Sleep:</strong> {formatSleep(body.sleepMinutes)}</p>
+            <p><strong>Recovery:</strong> {body.recoveryMinutes} min</p>
             <p className="muted">Only committed events and sessions count. No hidden daily telemetry.</p>
           </div>
           <form className="card" onSubmit={submitWater}>
@@ -166,9 +167,7 @@ export function BodyScreen() {
               Water (oz)
               <input name="waterOz" type="number" min="0.1" step="0.1" required />
             </label>
-            <p>
-              <button type="submit">LOG WATER</button>
-            </p>
+            <p><button type="submit">LOG WATER</button></p>
           </form>
           <form className="card" onSubmit={submitProtein}>
             <h2>Log protein</h2>
@@ -176,9 +175,7 @@ export function BodyScreen() {
               Protein (g)
               <input name="proteinGrams" type="number" min="0.1" step="0.1" required />
             </label>
-            <p>
-              <button type="submit">LOG PROTEIN</button>
-            </p>
+            <p><button type="submit">LOG PROTEIN</button></p>
           </form>
           <form className="card" onSubmit={submitSleep}>
             <h2>Log sleep</h2>
@@ -191,9 +188,7 @@ export function BodyScreen() {
               Sleep minutes
               <input name="sleepMinutes" type="number" min="0" max="59" step="1" inputMode="numeric" defaultValue="0" required />
             </label>
-            <p>
-              <button type="submit">LOG SLEEP</button>
-            </p>
+            <p><button type="submit">LOG SLEEP</button></p>
           </form>
           <div className="card">
             <h2>Recovery</h2>
@@ -202,23 +197,12 @@ export function BodyScreen() {
               <form onSubmit={submitRecovery}>
                 <label>
                   Recovery minutes
-                  <input
-                    name="recoveryMinutes"
-                    type="number"
-                    min="0"
-                    step="1"
-                    inputMode="numeric"
-                    required
-                  />
+                  <input name="recoveryMinutes" type="number" min="0" step="1" inputMode="numeric" required />
                 </label>
-                <p>
-                  <button type="submit">END & LOG RECOVERY</button>
-                </p>
+                <p><button type="submit">END & LOG RECOVERY</button></p>
               </form>
             ) : (
-              <button type="button" onClick={() => void beginRecovery()}>
-                START RECOVERY
-              </button>
+              <button type="button" onClick={() => void beginRecovery()}>START RECOVERY</button>
             )}
           </div>
         </>
