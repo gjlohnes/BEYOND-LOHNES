@@ -20,6 +20,14 @@ function decisionLabel(decision: PersistedRecommendationDecision) {
   return 'NO ACTION RECORDED';
 }
 
+const CHECK_IN_FIELDS = [
+  { key: 'energy', label: 'Energy', min: 1, max: 5 },
+  { key: 'stress', label: 'Stress', min: 1, max: 5 },
+  { key: 'mood', label: 'Mood', min: 1, max: 5 },
+  { key: 'soreness', label: 'Soreness', min: 0, max: 5 },
+  { key: 'alcoholUrge', label: 'Alcohol urge', min: 0, max: 5 },
+] as const;
+
 export function TodayScreen() {
   const navigate = useNavigate();
   const [dayId, setDayId] = useState<string | null>(null);
@@ -48,18 +56,27 @@ export function TodayScreen() {
   }, []);
 
   async function begin() {
-    const day = await startDay('UNKNOWN');
-    setDayId(day.id);
-    setStatus('BEYOND Day started.');
+    try {
+      const day = await startDay('UNKNOWN');
+      setDayId(day.id);
+      setStatus('BEYOND Day started.');
+    } catch {
+      setStatus('BEYOND Day could not be started. Existing local history was not changed.');
+    }
   }
 
   async function finishDay() {
     if (!dayId) return;
-    await endDay(dayId);
-    setDayId(null);
-    setRec(null);
-    setDecision(null);
-    setStatus('BEYOND Day ended.');
+    try {
+      await endDay(dayId);
+      setDayId(null);
+      setRec(null);
+      setDecision(null);
+      setShiftDownCommandId(null);
+      setStatus('BEYOND Day ended.');
+    } catch {
+      setStatus('BEYOND Day could not be ended. Existing local history remains available.');
+    }
   }
 
   async function checkIn(event: FormEvent<HTMLFormElement>) {
@@ -140,11 +157,17 @@ export function TodayScreen() {
 
   async function beginShiftDown() {
     if (!dayId) return;
-    const result = await startShiftDown(dayId);
-    if (result.status === 'COMPLETED') {
-      setShiftDownCommandId(result.commandId);
-      setStatus('SHIFT DOWN started and stored.');
-    } else setStatus('SHIFT DOWN could not be started.');
+    try {
+      const result = await startShiftDown(dayId);
+      if (result.status === 'COMPLETED') {
+        setShiftDownCommandId(result.commandId);
+        setStatus('SHIFT DOWN started and stored.');
+      } else {
+        setStatus('SHIFT DOWN could not be started.');
+      }
+    } catch {
+      setStatus('SHIFT DOWN could not be started. Existing history was not changed.');
+    }
   }
 
   async function finishShiftDown() {
@@ -183,13 +206,9 @@ export function TodayScreen() {
             </p>
             {rec && (
               <>
-                <p>
-                  <Link to={`/why/${rec.id}`}>WHY</Link>
-                </p>
+                <p><Link to={`/why/${rec.id}`}>WHY</Link></p>
                 {decision ? (
-                  <p>
-                    <strong>Decision: {decisionLabel(decision)}</strong>
-                  </p>
+                  <p><strong>Decision: {decisionLabel(decision)}</strong></p>
                 ) : (
                   <>
                     {rec.statusAtIssue === 'NO_ACTION_REQUIRED' ? (
@@ -212,51 +231,38 @@ export function TodayScreen() {
           <form className="card" onSubmit={checkIn}>
             <h2>State check-in</h2>
             <div className="grid">
-              {[
-                ['energy', 1, 5],
-                ['stress', 1, 5],
-                ['mood', 1, 5],
-                ['soreness', 0, 5],
-                ['alcoholUrge', 0, 5],
-              ].map(([key, min, max]) => (
-                <label key={String(key)}>
-                  {String(key)}
+              {CHECK_IN_FIELDS.map((field) => (
+                <label key={field.key}>
+                  {field.label}
                   <input
-                    name={String(key)}
+                    name={field.key}
                     type="number"
-                    min={Number(min)}
-                    max={Number(max)}
-                    defaultValue={Number(min)}
+                    min={field.min}
+                    max={field.max}
+                    defaultValue={field.min}
+                    inputMode="numeric"
                     required
                   />
                 </label>
               ))}
             </div>
-            <p>
-              <button type="submit">REASSESS</button>
-            </p>
+            <p><button type="submit">REASSESS</button></p>
           </form>
 
           <div className="card">
             <h2>Context actions</h2>
-            <p>
-              <Link to="/reset">I NEED A RESET</Link>
-            </p>
+            <p><Link to="/reset">I NEED A RESET</Link></p>
             {!shiftDownCommandId ? (
               <button onClick={beginShiftDown}>SHIFT DOWN</button>
             ) : (
               <>
                 <ol>
-                  {getShiftDownSteps().map((step) => (
-                    <li key={step.id}>{step.label}</li>
-                  ))}
+                  {getShiftDownSteps().map((step) => <li key={step.id}>{step.label}</li>)}
                 </ol>
                 <button onClick={finishShiftDown}>COMPLETE SHIFT DOWN</button>
               </>
             )}
-            <p>
-              <Link to={`/history/${dayId}`}>VIEW HISTORY</Link>
-            </p>
+            <p><Link to={`/history/${dayId}`}>VIEW HISTORY</Link></p>
           </div>
 
           <MinimumDayCard dayId={dayId} />
