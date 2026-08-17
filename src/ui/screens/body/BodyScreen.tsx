@@ -18,7 +18,7 @@ export function BodyScreen() {
   }
 
   useEffect(() => {
-    void refresh();
+    void getBodyState().then(setBody);
   }, []);
 
   async function submitWater(event: FormEvent<HTMLFormElement>) {
