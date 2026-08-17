@@ -90,8 +90,7 @@ describe('application-owned backup and restore', () => {
   it('rejects performed sets whose BeyondDay does not match their workout session', async () => {
     const day = await startDay('OFF_DUTY');
     const session = await startWorkout(day.id);
-    const firstExercise = 'machine-chest-press';
-    await logWorkoutSet(session.id, firstExercise, 1, 100, 10);
+    await logWorkoutSet(session.id, 'chest_press', 1, 100, 10);
     const document = await createBackupDocument();
     const corrupt = {
       ...document,
