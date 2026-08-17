@@ -30,6 +30,10 @@ function rejected(command: Command, errorCode: DomainErrorCode): CommandResult {
   return { commandId: command.id, status: 'REJECTED', emittedEvents: [], errorCode };
 }
 
+function positiveNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
 export async function executeCommand(
   command: Command,
   options: { recommendationId?: string } = {},
@@ -48,7 +52,10 @@ export async function executeCommand(
     'COMMAND_STARTED',
     command,
     'USER',
-    { commandName: command.name, ...(options.recommendationId ? { recommendationId: options.recommendationId } : {}) },
+    {
+      commandName: command.name,
+      ...(options.recommendationId ? { recommendationId: options.recommendationId } : {}),
+    },
     options.recommendationId,
   );
 
@@ -56,7 +63,12 @@ export async function executeCommand(
 
   if (command.name === 'START_RESET') {
     const intensity = (command.input as { intensity?: number }).intensity;
-    if (typeof intensity !== 'number' || !Number.isInteger(intensity) || intensity < 1 || intensity > 5) {
+    if (
+      typeof intensity !== 'number' ||
+      !Number.isInteger(intensity) ||
+      intensity < 1 ||
+      intensity > 5
+    ) {
       const aborted = event(
         'COMMAND_ABORTED',
         command,
@@ -95,6 +107,60 @@ export async function executeCommand(
           commandId: command.id,
           ...(options.recommendationId ? { recommendationId: options.recommendationId } : {}),
         },
+        started.id,
+      ),
+    );
+  } else if (command.name === 'LOG_WATER') {
+    const amountOz = (command.input as { amountOz?: unknown }).amountOz;
+    if (!positiveNumber(amountOz)) {
+      const aborted = event(
+        'COMMAND_ABORTED',
+        command,
+        'SYSTEM',
+        { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
+        started.id,
+      );
+      await db.events.bulkAdd([started, aborted]);
+      return {
+        commandId: command.id,
+        status: 'REJECTED',
+        emittedEvents: [started, aborted],
+        errorCode: 'INVALID_COMMAND_INPUT',
+      };
+    }
+    emitted.push(
+      event(
+        'WATER_LOGGED',
+        command,
+        'USER',
+        { commandId: command.id, amountOz },
+        started.id,
+      ),
+    );
+  } else if (command.name === 'PROTEIN_ACTION') {
+    const grams = (command.input as { grams?: unknown }).grams;
+    if (!positiveNumber(grams)) {
+      const aborted = event(
+        'COMMAND_ABORTED',
+        command,
+        'SYSTEM',
+        { commandName: command.name, errorCode: 'INVALID_COMMAND_INPUT' },
+        started.id,
+      );
+      await db.events.bulkAdd([started, aborted]);
+      return {
+        commandId: command.id,
+        status: 'REJECTED',
+        emittedEvents: [started, aborted],
+        errorCode: 'INVALID_COMMAND_INPUT',
+      };
+    }
+    emitted.push(
+      event(
+        'PROTEIN_ACTION_LOGGED',
+        command,
+        'USER',
+        { commandId: command.id, grams },
         started.id,
       ),
     );

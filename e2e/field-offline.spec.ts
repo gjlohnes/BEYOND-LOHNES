@@ -120,5 +120,32 @@ test('backup restore requires explicit validation preview before replacement', a
   await page.getByRole('button', { name: 'REPLACE RESTORE' }).click();
   const safetyDownload = await safetyDownloadPromise;
   expect(safetyDownload.suggestedFilename()).toContain('beyond-pre-restore-safety-');
-  await expect(page.getByText('Restore completed. Current data was exported first.', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Restore completed. Current data was exported first.', { exact: true }),
+  ).toBeVisible();
+});
+
+test('BODY logs water and protein as persistent offline events', async ({ page, context }) => {
+  await page.goto('/#/today');
+  await page.getByRole('button', { name: 'START DAY' }).click();
+  await page.getByRole('link', { name: 'BODY' }).click();
+
+  await page.getByLabel('Water (oz)').fill('40');
+  await page.getByRole('button', { name: 'LOG WATER' }).click();
+  await expect(page.getByText('Water: 40 oz', { exact: true })).toBeVisible();
+
+  await page.getByLabel('Protein (g)').fill('35');
+  await page.getByRole('button', { name: 'LOG PROTEIN' }).click();
+  await expect(page.getByText('Protein: 35 g', { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText('Water: 40 oz', { exact: true })).toBeVisible();
+  await expect(page.getByText('Protein: 35 g', { exact: true })).toBeVisible();
+  await page.evaluate(() => navigator.serviceWorker.ready);
+
+  await context.setOffline(true);
+  await page.reload();
+  await page.getByLabel('Water (oz)').fill('24');
+  await page.getByRole('button', { name: 'LOG WATER' }).click();
+  await expect(page.getByText('Water: 64 oz', { exact: true })).toBeVisible();
 });

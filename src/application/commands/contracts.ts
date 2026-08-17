@@ -18,7 +18,15 @@ export type CommandInput =
       name: 'REASSESS';
       input: Omit<StateCheckIn, 'id' | 'beyondDayId' | 'recordedAt'>;
     }
-  | { name: Exclude<CommandName, 'START_RESET' | 'START_SHIFT_DOWN' | 'REASSESS'>; input: unknown };
+  | { name: 'LOG_WATER'; input: { amountOz: number } }
+  | { name: 'PROTEIN_ACTION'; input: { grams: number } }
+  | {
+      name: Exclude<
+        CommandName,
+        'START_RESET' | 'START_SHIFT_DOWN' | 'REASSESS' | 'LOG_WATER' | 'PROTEIN_ACTION'
+      >;
+      input: unknown;
+    };
 
 export interface Command<TInput = unknown> {
   id: UUID;
