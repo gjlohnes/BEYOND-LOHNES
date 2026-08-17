@@ -10,6 +10,7 @@ import {
 } from '../../src/persistence/backup/backup';
 import { startDay, submitCheckIn } from '../../src/application/services/dayService';
 import { logSleep } from '../../src/application/services/bodyService';
+import { markWorkEnded } from '../../src/application/services/workContextService';
 import { logWorkoutSet, startWorkout } from '../../src/application/services/workoutService';
 
 beforeEach(async () => {
@@ -85,6 +86,39 @@ describe('application-owned backup and restore', () => {
 
     expect(() => parseBackup(JSON.stringify(corrupt))).toThrow('INVALID_BACKUP_RELATIONSHIPS');
     expect((await db.beyondDays.get(day.id))?.status).toBe('ACTIVE');
+  });
+
+  it('rejects impossible WORK_PERIOD_ENDED history during import validation', async () => {
+    const day = await startDay('WORK');
+    expect((await markWorkEnded(day.id)).status).toBe('COMPLETED');
+    const document = await createBackupDocument();
+    const workEnded = document.payload.events.find((event) => event.type === 'WORK_PERIOD_ENDED');
+    expect(workEnded).toBeTruthy();
+
+    const wrongContext = {
+      ...document,
+      payload: {
+        ...document.payload,
+        beyondDays: document.payload.beyondDays.map((candidate) =>
+          candidate.id === day.id ? { ...candidate, workContext: 'OFF_DUTY' as const } : candidate,
+        ),
+      },
+    };
+    expect(() => parseBackup(JSON.stringify(wrongContext))).toThrow('INVALID_BACKUP_RELATIONSHIPS');
+
+    const duplicateTransition = {
+      ...document,
+      payload: {
+        ...document.payload,
+        events: [
+          ...document.payload.events,
+          { ...workEnded!, id: crypto.randomUUID() },
+        ],
+      },
+    };
+    expect(() => parseBackup(JSON.stringify(duplicateTransition))).toThrow(
+      'INVALID_BACKUP_RELATIONSHIPS',
+    );
   });
 
   it('rejects performed sets whose BeyondDay does not match their workout session', async () => {
