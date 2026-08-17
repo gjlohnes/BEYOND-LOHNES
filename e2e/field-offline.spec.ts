@@ -65,7 +65,31 @@ test('accepting a YELLOW recovery recommendation gives immediate visible feedbac
   await expect(page.getByRole('heading', { name: 'Protect recovery' })).toBeVisible();
 
   await page.getByRole('button', { name: 'ACCEPT' }).click();
-  await expect(page.getByRole('status')).toContainText('ACCEPT stored.');
-  await expect(page.getByRole('button', { name: 'ACCEPT' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'DISMISS' })).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Recommendation accepted.');
+  await expect(page.getByText('Decision: ACCEPTED', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ACCEPT' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'DISMISS' })).toHaveCount(0);
+});
+
+test('a decided recommendation restores its decision state after reload', async ({ page }) => {
+  await page.goto('/#/today');
+  await page.getByRole('button', { name: 'START DAY' }).click();
+  await page.locator('input[name="energy"]').fill('2');
+  await page.locator('input[name="stress"]').fill('4');
+  await page.locator('input[name="mood"]').fill('2');
+  await page.locator('input[name="soreness"]').fill('1');
+  await page.locator('input[name="alcoholUrge"]').fill('0');
+  await page.getByRole('button', { name: 'REASSESS' }).click();
+  await expect(page.getByRole('heading', { name: 'Protect recovery' })).toBeVisible();
+  await page.getByRole('button', { name: 'ACCEPT' }).click();
+  await expect(page.getByText('Decision: ACCEPTED', { exact: true })).toBeVisible();
+
+  await page.reload();
+
+  await expect(page.getByRole('heading', { name: 'Protect recovery' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Recommendation accepted.');
+  await expect(page.getByText('Decision: ACCEPTED', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ACCEPT' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'DISMISS' })).toHaveCount(0);
+  await expect(page.getByText('RECOMMENDATION_ALREADY_DECIDED')).toHaveCount(0);
 });
