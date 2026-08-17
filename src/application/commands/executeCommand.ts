@@ -62,6 +62,20 @@ async function persistCommandResult(
       .filter((candidate) => candidate.correlationId === command.id)
       .first();
     if (duplicate) return rejected(command, 'DUPLICATE_COMMAND');
+
+    if (
+      command.name === 'MARK_WORK_ENDED' &&
+      command.beyondDayId &&
+      result.emittedEvents.some((candidate) => candidate.type === 'WORK_PERIOD_ENDED')
+    ) {
+      const alreadyEnded = await db.events
+        .where('beyondDayId')
+        .equals(command.beyondDayId)
+        .filter((candidate) => candidate.type === 'WORK_PERIOD_ENDED')
+        .first();
+      if (alreadyEnded) return rejected(command, 'WORK_ALREADY_ENDED');
+    }
+
     if (result.emittedEvents.length > 0) await db.events.bulkAdd(result.emittedEvents);
     return result;
   });
