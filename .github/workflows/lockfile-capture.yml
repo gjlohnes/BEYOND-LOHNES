@@ -7,15 +7,22 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.1-foundation-field-001
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm install --package-lock-only --ignore-scripts
-      - uses: actions/upload-artifact@v4
-        with:
-          name: playwright-package-lock
-          path: package-lock.json
+      - name: Commit lockfile only if changed
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "lock Playwright dependency"
+            git push origin HEAD:agent/v0.1-foundation-field-001
+          fi
