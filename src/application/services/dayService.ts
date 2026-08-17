@@ -3,6 +3,8 @@ import { db } from '../../persistence/db';
 import type { WorkContext } from '../../domain/common/types';
 import type { StateCheckIn } from '../../domain/checkin/types';
 import { evaluate } from '../../engine/evaluate';
+import { stateCheckInPayloadSchema } from '../../persistence/validation';
+import { executeCommand } from '../commands/executeCommand';
 
 export async function startDay(workContext: WorkContext) {
   const active = await db.beyondDays.where('status').equals('ACTIVE').first();
@@ -42,15 +44,39 @@ export async function submitCheckIn(
   values: Omit<StateCheckIn, 'id' | 'beyondDayId' | 'recordedAt'>,
 ) {
   const day = await db.beyondDays.get(dayId);
-  if (!day) throw new Error('DAY_NOT_FOUND');
+  if (!day || day.status !== 'ACTIVE') throw new Error('DAY_NOT_FOUND');
+
   const now = new Date().toISOString();
-  const checkIn: StateCheckIn = {
+  const checkIn = stateCheckInPayloadSchema.parse({
     id: crypto.randomUUID(),
     beyondDayId: dayId,
     recordedAt: now,
     ...values,
+  }) as StateCheckIn;
+
+  const reassessCommand = {
+    id: crypto.randomUUID(),
+    name: 'REASSESS' as const,
+    beyondDayId: dayId,
+    issuedAt: now,
+    input: values,
   };
-  const result = evaluate({ beyondDay: day, latestCheckIn: checkIn, recentEvents: [], context: {}, now });
+  const commandResult = await executeCommand(reassessCommand);
+  if (commandResult.status !== 'COMPLETED') throw new Error(commandResult.errorCode ?? 'REASSESS_FAILED');
+
+  const recentEvents = await db.events
+    .where('beyondDayId')
+    .equals(dayId)
+    .reverse()
+    .sortBy('occurredAt');
+
+  const result = evaluate({
+    beyondDay: day,
+    latestCheckIn: checkIn,
+    recentEvents: recentEvents.slice(0, 25),
+    context: {},
+    now,
+  });
   const recommendation = {
     id: crypto.randomUUID(),
     beyondDayId: dayId,
@@ -61,16 +87,30 @@ export async function submitCheckIn(
 
   await db.transaction('rw', db.events, db.recommendations, async () => {
     await db.events.add({
-      id: crypto.randomUUID(), schemaVersion: 1, type: 'STATE_CHECKED_IN', beyondDayId: dayId,
-      occurredAt: now, recordedAt: now, payload: checkIn, source: 'USER',
+      id: crypto.randomUUID(),
+      schemaVersion: 1,
+      type: 'STATE_CHECKED_IN',
+      beyondDayId: dayId,
+      occurredAt: now,
+      recordedAt: now,
+      payload: checkIn,
+      source: 'USER',
+      correlationId: reassessCommand.id,
     });
     await db.recommendations.add(recommendation);
     await db.events.add({
-      id: crypto.randomUUID(), schemaVersion: 1, type: 'RECOMMENDATION_ISSUED', beyondDayId: dayId,
-      occurredAt: now, recordedAt: now, payload: { recommendationId: recommendation.id, kind: recommendation.kind }, source: 'ENGINE',
+      id: crypto.randomUUID(),
+      schemaVersion: 1,
+      type: 'RECOMMENDATION_ISSUED',
+      beyondDayId: dayId,
+      occurredAt: now,
+      recordedAt: now,
+      payload: { recommendationId: recommendation.id, kind: recommendation.kind },
+      source: 'ENGINE',
+      causationId: reassessCommand.id,
     });
   });
-  return { checkIn, recommendation };
+  return { checkIn, recommendation, commandResult };
 }
 
 export async function getTodayState() {
