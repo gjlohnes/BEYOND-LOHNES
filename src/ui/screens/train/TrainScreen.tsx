@@ -1,0 +1,1 @@
+export function TrainScreen(){return <section><div className="eyebrow">TRAIN</div><h1>Not active in FIELD 001</h1><p className="muted">Reserved route. No speculative workout implementation.</p></section>}

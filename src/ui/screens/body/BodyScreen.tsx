@@ -1,0 +1,1 @@
+export function BodyScreen(){return <section><div className="eyebrow">BODY</div><h1>Essentials only</h1><p className="muted">State check-in currently lives in TODAY for the first vertical slice.</p></section>}
