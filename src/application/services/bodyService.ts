@@ -1,17 +1,34 @@
 import { db } from '../../persistence/db';
 import { executeCommand } from '../commands/executeCommand';
+import { completeRecoverySession, startRecoverySession } from './workoutService';
 
 export interface BodyState {
   dayId: string | null;
   waterOz: number;
   proteinGrams: number;
+  recoveryMinutes: number;
+  activeRecoverySessionId: string | null;
 }
 
 export async function getBodyState(): Promise<BodyState> {
   const day = await db.beyondDays.where('status').equals('ACTIVE').first();
-  if (!day) return { dayId: null, waterOz: 0, proteinGrams: 0 };
+  if (!day)
+    return {
+      dayId: null,
+      waterOz: 0,
+      proteinGrams: 0,
+      recoveryMinutes: 0,
+      activeRecoverySessionId: null,
+    };
 
-  const events = await db.events.where('beyondDayId').equals(day.id).toArray();
+  const [events, recoverySessions] = await Promise.all([
+    db.events.where('beyondDayId').equals(day.id).toArray(),
+    db.workoutSessions
+      .where('beyondDayId')
+      .equals(day.id)
+      .filter((session) => session.sessionType === 'RECOVERY')
+      .toArray(),
+  ]);
   let waterOz = 0;
   let proteinGrams = 0;
 
@@ -30,7 +47,19 @@ export async function getBodyState(): Promise<BodyState> {
     }
   }
 
-  return { dayId: day.id, waterOz, proteinGrams };
+  const recoveryMinutes = recoverySessions.reduce(
+    (total, session) => total + (session.durationMinutes ?? 0),
+    0,
+  );
+  const activeRecovery = recoverySessions.find((session) => session.status === 'ACTIVE');
+
+  return {
+    dayId: day.id,
+    waterOz,
+    proteinGrams,
+    recoveryMinutes,
+    activeRecoverySessionId: activeRecovery?.id ?? null,
+  };
 }
 
 export async function logWater(dayId: string, amountOz: number) {
@@ -51,4 +80,14 @@ export async function logProtein(dayId: string, grams: number) {
     issuedAt: new Date().toISOString(),
     input: { grams },
   });
+}
+
+export async function startBodyRecovery(dayId: string) {
+  const session = await startRecoverySession(dayId);
+  if (session.sessionType !== 'RECOVERY') throw new Error('WORKOUT_ALREADY_ACTIVE');
+  return session;
+}
+
+export function completeBodyRecovery(sessionId: string, durationMinutes: number) {
+  return completeRecoverySession(sessionId, durationMinutes);
 }
