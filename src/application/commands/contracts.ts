@@ -20,10 +20,16 @@ export type CommandInput =
     }
   | { name: 'LOG_WATER'; input: { amountOz: number } }
   | { name: 'PROTEIN_ACTION'; input: { grams: number } }
+  | { name: 'LOG_SLEEP'; input: { durationMinutes: number } }
   | {
       name: Exclude<
         CommandName,
-        'START_RESET' | 'START_SHIFT_DOWN' | 'REASSESS' | 'LOG_WATER' | 'PROTEIN_ACTION'
+        | 'START_RESET'
+        | 'START_SHIFT_DOWN'
+        | 'REASSESS'
+        | 'LOG_WATER'
+        | 'PROTEIN_ACTION'
+        | 'LOG_SLEEP'
       >;
       input: unknown;
     };
