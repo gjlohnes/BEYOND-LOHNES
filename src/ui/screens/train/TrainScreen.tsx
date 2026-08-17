@@ -32,8 +32,8 @@ export function TrainScreen() {
       else await startRecoverySession(state.dayId);
       setStatus(`${kind === 'RECOVERY' ? 'Recovery session' : `${kind} workout`} started.`);
       await refresh();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Unable to start session.');
+    } catch {
+      setStatus('Session could not be started. Your existing training history was not changed.');
     }
   }
 
@@ -53,8 +53,8 @@ export function TrainScreen() {
       formElement.reset();
       setStatus('Set logged.');
       await refresh();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Unable to log set.');
+    } catch {
+      setStatus('Set could not be logged. Check weight and reps, then try again.');
     }
   }
 
@@ -64,8 +64,8 @@ export function TrainScreen() {
       await skipWorkoutSet(state.activeWorkout.id, exerciseId, setOrdinal);
       setStatus('Set skipped.');
       await refresh();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Unable to skip set.');
+    } catch {
+      setStatus('Set could not be skipped. Your existing training history was not changed.');
     }
   }
 
@@ -75,8 +75,8 @@ export function TrainScreen() {
       const closed = await completeWorkout(state.activeWorkout.id);
       setStatus(`Workout ${closed.status.toLowerCase()}.`);
       await refresh();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Unable to complete workout.');
+    } catch {
+      setStatus('Workout could not be completed. Your recorded sets remain stored.');
     }
   }
 
@@ -88,8 +88,8 @@ export function TrainScreen() {
       const closed = await completeRecoverySession(state.activeWorkout.id, durationMinutes);
       setStatus(`Recovery session ${closed.status.toLowerCase()}.`);
       await refresh();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Unable to complete recovery session.');
+    } catch {
+      setStatus('Recovery minutes must be a whole number, 0 or greater.');
     }
   }
 
