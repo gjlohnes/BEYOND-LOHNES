@@ -1,20 +1,27 @@
+import Dexie from 'dexie';
 import { db } from '../../persistence/db';
 import { executeCommand } from '../commands/executeCommand';
 
 export async function getWorkTransitionState(dayId: string) {
-  const event = await db.events
-    .where('beyondDayId')
-    .equals(dayId)
-    .filter((candidate) => candidate.type === 'WORK_PERIOD_ENDED')
-    .first();
-  return {
-    ended: Boolean(event),
-    endedAt: event?.occurredAt ?? null,
-  };
-}
+  const events = await db.events
+    .where('[beyondDayId+occurredAt]')
+    .between([dayId, Dexie.minKey], [dayId, Dexie.maxKey])
+    .toArray();
+  const workEnded = events.find((candidate) => candidate.type === 'WORK_PERIOD_ENDED');
+  const latestShiftDownCompleted = [...events]
+    .reverse()
+    .find((candidate) => candidate.type === 'SHIFT_DOWN_COMPLETED');
+  const endedAt = workEnded?.occurredAt ?? null;
+  const shiftDownCompletedAt = latestShiftDownCompleted?.occurredAt ?? null;
+  const postShift =
+    Boolean(endedAt) && (!shiftDownCompletedAt || shiftDownCompletedAt < (endedAt as string));
 
-export async function hasWorkEnded(dayId: string) {
-  return (await getWorkTransitionState(dayId)).ended;
+  return {
+    ended: Boolean(endedAt),
+    endedAt,
+    shiftDownCompletedAt,
+    postShift,
+  };
 }
 
 export async function markWorkEnded(dayId: string) {
