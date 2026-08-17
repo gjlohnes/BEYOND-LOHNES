@@ -10,6 +10,7 @@ import {
 } from '../../src/persistence/backup/backup';
 import { startDay, submitCheckIn } from '../../src/application/services/dayService';
 import { logSleep } from '../../src/application/services/bodyService';
+import { logWorkoutSet, startWorkout } from '../../src/application/services/workoutService';
 
 beforeEach(async () => {
   db.close();
@@ -59,6 +60,53 @@ describe('application-owned backup and restore', () => {
     );
   });
 
+  it('rejects schema-valid backups with orphaned domain relationships before restore', async () => {
+    const day = await startDay('WORK');
+    const result = await submitCheckIn(day.id, {
+      energy: 5,
+      stress: 1,
+      mood: 5,
+      soreness: 0,
+      alcoholUrge: 0,
+    });
+    const document = await createBackupDocument();
+    const orphanDayId = crypto.randomUUID();
+    const corrupt = {
+      ...document,
+      payload: {
+        ...document.payload,
+        recommendations: document.payload.recommendations.map((recommendation) =>
+          recommendation.id === result.recommendation.id
+            ? { ...recommendation, beyondDayId: orphanDayId }
+            : recommendation,
+        ),
+      },
+    };
+
+    expect(() => parseBackup(JSON.stringify(corrupt))).toThrow('INVALID_BACKUP_RELATIONSHIPS');
+    expect((await db.beyondDays.get(day.id))?.status).toBe('ACTIVE');
+  });
+
+  it('rejects performed sets whose BeyondDay does not match their workout session', async () => {
+    const day = await startDay('OFF_DUTY');
+    const session = await startWorkout(day.id);
+    const firstExercise = 'machine-chest-press';
+    await logWorkoutSet(session.id, firstExercise, 1, 100, 10);
+    const document = await createBackupDocument();
+    const corrupt = {
+      ...document,
+      payload: {
+        ...document.payload,
+        performedSets: document.payload.performedSets.map((set) => ({
+          ...set,
+          beyondDayId: crypto.randomUUID(),
+        })),
+      },
+    };
+
+    expect(() => parseBackup(JSON.stringify(corrupt))).toThrow('INVALID_BACKUP_RELATIONSHIPS');
+  });
+
   it('replace-restores transactionally and preserves relationships', async () => {
     const day = await startDay('WORK');
     const result = await submitCheckIn(day.id, {
@@ -79,7 +127,7 @@ describe('application-owned backup and restore', () => {
     expect((await db.recommendations.get(result.recommendation.id))?.beyondDayId).toBe(day.id);
   });
 
-  it('rolls back the destructive transaction if restoration fails', async () => {
+  it('rolls back or rejects before mutation if restoration fails', async () => {
     const day = await startDay('WORK');
     const document = await createBackupDocument();
     const duplicate = {
