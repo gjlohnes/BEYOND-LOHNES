@@ -5,6 +5,7 @@ import {
   completeBodyRecovery,
   getBodyState,
   logProtein,
+  logSleep,
   logWater,
   startBodyRecovery,
 } from '../../src/application/services/bodyService';
@@ -17,18 +18,20 @@ beforeEach(async () => {
 });
 
 describe('BODY event logging', () => {
-  it('records water and protein as meaningful command/event history', async () => {
+  it('records water, protein, and sleep as meaningful command/event history', async () => {
     const day = await startDay('OFF_DUTY');
 
     expect((await logWater(day.id, 40)).status).toBe('COMPLETED');
     expect((await logWater(day.id, 24.2)).status).toBe('COMPLETED');
     expect((await logProtein(day.id, 35)).status).toBe('COMPLETED');
+    expect((await logSleep(day.id, 450)).status).toBe('COMPLETED');
 
     const state = await getBodyState();
     expect(state).toEqual({
       dayId: day.id,
       waterOz: 64.2,
       proteinGrams: 35,
+      sleepMinutes: 450,
       recoveryMinutes: 0,
       activeRecoverySessionId: null,
     });
@@ -36,6 +39,19 @@ describe('BODY event logging', () => {
     const events = await db.events.where('beyondDayId').equals(day.id).toArray();
     expect(events.filter((event) => event.type === 'WATER_LOGGED')).toHaveLength(2);
     expect(events.filter((event) => event.type === 'PROTEIN_ACTION_LOGGED')).toHaveLength(1);
+    expect(events.filter((event) => event.type === 'SLEEP_LOGGED')).toHaveLength(1);
+  });
+
+  it('uses the latest sleep duration when the primary sleep fact is corrected', async () => {
+    const day = await startDay('OFF_DUTY');
+
+    expect((await logSleep(day.id, 420)).status).toBe('COMPLETED');
+    expect((await logSleep(day.id, 465)).status).toBe('COMPLETED');
+
+    expect((await getBodyState()).sleepMinutes).toBe(465);
+    expect((await db.events.where('beyondDayId').equals(day.id).toArray()).filter(
+      (event) => event.type === 'SLEEP_LOGGED',
+    )).toHaveLength(2);
   });
 
   it('records recovery through the existing recovery-session domain contract', async () => {
@@ -58,7 +74,7 @@ describe('BODY event logging', () => {
 
   it('rejects invalid quantities and preserves an explicit aborted command record', async () => {
     const day = await startDay('OFF_DUTY');
-    const result = await logWater(day.id, 0);
+    const result = await logSleep(day.id, 0);
 
     expect(result.status).toBe('REJECTED');
     expect(result.errorCode).toBe('INVALID_COMMAND_INPUT');
@@ -66,7 +82,7 @@ describe('BODY event logging', () => {
       'COMMAND_STARTED',
       'COMMAND_ABORTED',
     ]);
-    expect((await getBodyState()).waterOz).toBe(0);
+    expect((await getBodyState()).sleepMinutes).toBeNull();
   });
 
   it('requires an active day', async () => {
