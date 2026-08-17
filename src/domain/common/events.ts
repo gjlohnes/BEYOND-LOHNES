@@ -3,6 +3,7 @@ import type { ISODateTime, UUID } from './types';
 export type EventType =
   | 'DAY_STARTED'
   | 'DAY_ENDED'
+  | 'WORK_PERIOD_ENDED'
   | 'STATE_CHECKED_IN'
   | 'RECOMMENDATION_ISSUED'
   | 'RECOMMENDATION_ACCEPTED'
