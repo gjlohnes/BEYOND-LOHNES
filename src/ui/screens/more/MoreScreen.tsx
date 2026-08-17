@@ -118,18 +118,24 @@ export function MoreScreen() {
         )}
         {status && <p role="status">{status}</p>}
       </div>
-      <div className="card">
+      <div className="card diagnostics-card">
         <h2>Diagnostics</h2>
         {diagnostics ? (
-          <dl>
+          <dl className="diagnostics-list">
             <dt>App</dt><dd>{diagnostics.appVersion}</dd>
             <dt>Engine</dt><dd>{diagnostics.engineVersion}</dd>
             <dt>Data schema</dt><dd>{diagnostics.dataSchemaVersion}</dd>
             <dt>Backup format</dt><dd>{diagnostics.backupFormatVersion}</dd>
             <dt>Dexie</dt><dd>{diagnostics.dexieDatabaseVersion}</dd>
             <dt>Active day</dt><dd>{diagnostics.activeBeyondDay ? 'YES' : 'NO'}</dd>
-            <dt>Records</dt><dd>{JSON.stringify(diagnostics.counts)}</dd>
-            <dt>Last backup</dt><dd>{String(diagnostics.lastBackupAt ?? 'NEVER')}</dd>
+            <dt>Days</dt><dd>{diagnostics.counts.beyondDays}</dd>
+            <dt>Events</dt><dd>{diagnostics.counts.events}</dd>
+            <dt>Recommendations</dt><dd>{diagnostics.counts.recommendations}</dd>
+            <dt>Outcomes</dt><dd>{diagnostics.counts.outcomes}</dd>
+            <dt>Workout sessions</dt><dd>{diagnostics.counts.workoutSessions}</dd>
+            <dt>Performed sets</dt><dd>{diagnostics.counts.performedSets}</dd>
+            <dt>Last backup recorded in restored data</dt>
+            <dd className="diagnostics-value-long">{String(diagnostics.lastBackupAt ?? 'NEVER')}</dd>
           </dl>
         ) : <p>Loading…</p>}
       </div>
