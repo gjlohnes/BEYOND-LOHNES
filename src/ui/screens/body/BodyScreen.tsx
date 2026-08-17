@@ -24,14 +24,15 @@ export function BodyScreen() {
   async function submitWater(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!body.dayId) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const amountOz = Number(form.get('waterOz'));
     const result = await logWater(body.dayId, amountOz);
     if (result.status !== 'COMPLETED') {
       setStatus(result.errorCode ?? 'Water log rejected.');
       return;
     }
-    event.currentTarget.reset();
+    formElement.reset();
     setStatus(`${amountOz} oz water logged.`);
     await refresh();
   }
@@ -39,14 +40,15 @@ export function BodyScreen() {
   async function submitProtein(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!body.dayId) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const grams = Number(form.get('proteinGrams'));
     const result = await logProtein(body.dayId, grams);
     if (result.status !== 'COMPLETED') {
       setStatus(result.errorCode ?? 'Protein log rejected.');
       return;
     }
-    event.currentTarget.reset();
+    formElement.reset();
     setStatus(`${grams} g protein logged.`);
     await refresh();
   }
