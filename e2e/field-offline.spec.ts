@@ -52,3 +52,20 @@ test('FIELD loop persists and remains deterministic offline', async ({ page, con
     throw error;
   }
 });
+
+test('accepting a YELLOW recovery recommendation gives immediate visible feedback', async ({ page }) => {
+  await page.goto('/#/today');
+  await page.getByRole('button', { name: 'START DAY' }).click();
+  await page.locator('input[name="energy"]').fill('4');
+  await page.locator('input[name="stress"]').fill('2');
+  await page.locator('input[name="mood"]').fill('2');
+  await page.locator('input[name="soreness"]').fill('1');
+  await page.locator('input[name="alcoholUrge"]').fill('0');
+  await page.getByRole('button', { name: 'REASSESS' }).click();
+  await expect(page.getByRole('heading', { name: 'Protect recovery' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'ACCEPT' }).click();
+  await expect(page.getByRole('status')).toContainText('ACCEPT stored.');
+  await expect(page.getByRole('button', { name: 'ACCEPT' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'DISMISS' })).toBeDisabled();
+});
