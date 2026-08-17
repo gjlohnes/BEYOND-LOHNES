@@ -78,8 +78,8 @@ export function TodayScreen() {
       setRec(result.recommendation);
       setDecision(null);
       setStatus('REASSESS completed.');
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Check-in rejected.');
+    } catch {
+      setStatus('Check-in could not be stored. Keep each value within its shown range and try again.');
     }
   }
 
@@ -98,6 +98,7 @@ export function TodayScreen() {
       ) {
         const result = await startShiftDown(dayId, rec.id);
         if (result.status === 'COMPLETED') setShiftDownCommandId(result.commandId);
+        else setStatus('Recommendation accepted, but SHIFT DOWN could not be started.');
       }
     } catch (error) {
       if (error instanceof Error && error.message === 'RECOMMENDATION_ALREADY_DECIDED') {
@@ -109,13 +110,25 @@ export function TodayScreen() {
   }
 
   async function override(command: 'START_RESET' | 'START_SHIFT_DOWN') {
-    if (!rec || decision) return;
+    if (!rec || decision || !dayId) return;
     try {
       await decideRecommendation(rec.id, 'OVERRIDE', command);
       setDecision('OVERRIDE');
       setStatus(
         `Recommendation overridden with ${command === 'START_RESET' ? 'RESET' : 'SHIFT DOWN'}.`,
       );
+
+      if (command === 'START_RESET') {
+        navigate(`/reset?recommendationId=${rec.id}`);
+        return;
+      }
+
+      const result = await startShiftDown(dayId, rec.id);
+      if (result.status === 'COMPLETED') {
+        setShiftDownCommandId(result.commandId);
+      } else {
+        setStatus('Override recorded, but SHIFT DOWN could not be started.');
+      }
     } catch (error) {
       if (error instanceof Error && error.message === 'RECOMMENDATION_ALREADY_DECIDED') {
         await refreshTodayState();
@@ -131,14 +144,18 @@ export function TodayScreen() {
     if (result.status === 'COMPLETED') {
       setShiftDownCommandId(result.commandId);
       setStatus('SHIFT DOWN started and stored.');
-    } else setStatus(result.errorCode ?? 'SHIFT DOWN not started.');
+    } else setStatus('SHIFT DOWN could not be started.');
   }
 
   async function finishShiftDown() {
     if (!dayId || !shiftDownCommandId) return;
-    await completeShiftDown(dayId, shiftDownCommandId);
-    setShiftDownCommandId(null);
-    setStatus('SHIFT DOWN completed and stored.');
+    try {
+      await completeShiftDown(dayId, shiftDownCommandId);
+      setShiftDownCommandId(null);
+      setStatus('SHIFT DOWN completed and stored.');
+    } catch {
+      setStatus('SHIFT DOWN could not be completed. Your existing history remains stored.');
+    }
   }
 
   return (
