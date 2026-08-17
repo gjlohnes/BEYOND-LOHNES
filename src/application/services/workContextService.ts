@@ -1,13 +1,20 @@
 import { db } from '../../persistence/db';
 import { executeCommand } from '../commands/executeCommand';
 
-export async function hasWorkEnded(dayId: string) {
+export async function getWorkTransitionState(dayId: string) {
   const event = await db.events
     .where('beyondDayId')
     .equals(dayId)
     .filter((candidate) => candidate.type === 'WORK_PERIOD_ENDED')
     .first();
-  return Boolean(event);
+  return {
+    ended: Boolean(event),
+    endedAt: event?.occurredAt ?? null,
+  };
+}
+
+export async function hasWorkEnded(dayId: string) {
+  return (await getWorkTransitionState(dayId)).ended;
 }
 
 export async function markWorkEnded(dayId: string) {
