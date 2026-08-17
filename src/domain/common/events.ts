@@ -1,0 +1,3 @@
+import type { ISODateTime, UUID } from './types';
+export type EventType = 'DAY_STARTED'|'DAY_ENDED'|'STATE_CHECKED_IN'|'RECOMMENDATION_ISSUED'|'RECOMMENDATION_ACCEPTED'|'RECOMMENDATION_DISMISSED'|'RECOMMENDATION_OVERRIDDEN'|'COMMAND_STARTED'|'COMMAND_COMPLETED'|'COMMAND_ABORTED'|'RESET_STARTED'|'SHIFT_DOWN_STARTED'|'MINIMUM_DAY_ENABLED'|'WATER_LOGGED'|'PROTEIN_ACTION_LOGGED'|'NO_ACTION_RECORDED';
+export interface DomainEvent<T = unknown> { id: UUID; schemaVersion: number; type: EventType; beyondDayId?: UUID; occurredAt: ISODateTime; recordedAt: ISODateTime; payload: T; source: 'USER'|'ENGINE'|'SYSTEM'; correlationId?: UUID; causationId?: UUID; }
