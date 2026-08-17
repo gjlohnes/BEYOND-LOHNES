@@ -12,6 +12,7 @@ import {
 } from '../../persistence/validation';
 import { executeCommand } from '../commands/executeCommand';
 import { getActiveRitual } from './ritualService';
+import { hasWorkEnded } from './workContextService';
 
 export type PersistedRecommendationDecision = 'ACCEPT' | 'DISMISS' | 'OVERRIDE' | 'NO_ACTION';
 
@@ -201,15 +202,17 @@ export async function submitCheckIn(
 
 export async function getTodayState() {
   const dayRaw = await db.beyondDays.where('status').equals('ACTIVE').first();
-  if (!dayRaw) return { day: null, recommendation: null, recommendationDecision: null };
+  if (!dayRaw)
+    return { day: null, recommendation: null, recommendationDecision: null, workEnded: false };
   const day = assertValidBeyondDay(dayRaw);
+  const workEnded = await hasWorkEnded(day.id);
   const recommendationRaw = await db.recommendations
     .where('[beyondDayId+issuedAt]')
     .between([day.id, Dexie.minKey], [day.id, Dexie.maxKey])
     .last();
   const recommendation = recommendationRaw ? assertValidRecommendation(recommendationRaw) : null;
   if (!recommendation)
-    return { day, recommendation: null, recommendationDecision: null };
+    return { day, recommendation: null, recommendationDecision: null, workEnded };
 
   const decisionEvent = await db.events
     .where('beyondDayId')
@@ -227,5 +230,6 @@ export async function getTodayState() {
     recommendationDecision: decisionEvent
       ? recommendationDecisionFromEventType(decisionEvent.type)
       : null,
+    workEnded,
   };
 }
