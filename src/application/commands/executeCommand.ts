@@ -87,8 +87,10 @@ async function correctionTargetIsCurrent(
         (candidate.payload as { supersedesEventId?: unknown }).supersedesEventId === currentEventId,
     );
     if (next.length !== 1) return false;
-    currentEventId = next[0].id;
-    remaining.delete(next[0].id);
+    const nextEvent = next[0];
+    if (!nextEvent) return false;
+    currentEventId = nextEvent.id;
+    remaining.delete(nextEvent.id);
   }
 
   return currentEventId === supersedesEventId;
