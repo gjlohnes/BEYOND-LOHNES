@@ -60,6 +60,14 @@ function isUuid(value: unknown): value is string {
   );
 }
 
+function waterAmount(event: DomainEvent | undefined) {
+  if (!event || !event.payload || typeof event.payload !== 'object') return null;
+  const amountOz = (event.payload as { amountOz?: unknown }).amountOz;
+  return typeof amountOz === 'number' && Number.isFinite(amountOz) && amountOz > 0
+    ? amountOz
+    : null;
+}
+
 async function correctionTargetIsCurrent(
   beyondDayId: string,
   originalEventId: string,
@@ -126,6 +134,7 @@ async function persistCommandResult(
       const payload = correction.payload as {
         originalEventId: string;
         supersedesEventId: string;
+        amountOz: number;
       };
       if (
         !(await correctionTargetIsCurrent(
@@ -135,6 +144,10 @@ async function persistCommandResult(
         ))
       ) {
         return rejected(command, 'STALE_CORRECTION_TARGET');
+      }
+      const target = await db.events.get(payload.supersedesEventId);
+      if (waterAmount(target) === payload.amountOz) {
+        return rejected(command, 'NO_CORRECTION_CHANGE');
       }
     }
 
