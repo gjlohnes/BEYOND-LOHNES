@@ -3,6 +3,14 @@ import { Link, useParams } from 'react-router-dom';
 import { getDayHistory } from '../../../application/queries/history';
 import type { DomainEvent } from '../../../domain/common/events';
 
+function eventLabel(event: DomainEvent) {
+  if (event.type === 'WATER_LOG_CORRECTED') {
+    const amountOz = (event.payload as { amountOz?: unknown }).amountOz;
+    return typeof amountOz === 'number' ? `WATER_LOG_CORRECTED → ${amountOz} oz` : event.type;
+  }
+  return event.type;
+}
+
 export function HistoryScreen() {
   const { dayId } = useParams();
   const [events, setEvents] = useState<DomainEvent[]>([]);
@@ -13,7 +21,7 @@ export function HistoryScreen() {
   }, [dayId]);
 
   return (
-    <section>
+    <section className="screen">
       <div className="eyebrow">BEYOND // HISTORY</div>
       <h1>What happened</h1>
       <div className="card">
@@ -23,14 +31,14 @@ export function HistoryScreen() {
           <ol>
             {events.map((event) => (
               <li key={event.id}>
-                <strong>{event.type}</strong>
+                <strong>{eventLabel(event)}</strong>
                 <div className="muted">{new Date(event.occurredAt).toLocaleString()}</div>
               </li>
             ))}
           </ol>
         )}
       </div>
-      <Link to="/today">Return to TODAY</Link>
+      <Link className="text-action" to="/today">Return to TODAY</Link>
     </section>
   );
 }
