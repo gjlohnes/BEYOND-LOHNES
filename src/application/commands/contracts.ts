@@ -9,6 +9,7 @@ export type DomainErrorCode =
   | 'NO_ACTIVE_DAY'
   | 'INVALID_COMMAND_INPUT'
   | 'DUPLICATE_COMMAND'
+  | 'STALE_CORRECTION_TARGET'
   | 'UNSUPPORTED_COMMAND'
   | 'WORK_CONTEXT_REQUIRED'
   | 'WORK_ALREADY_ENDED';
@@ -22,6 +23,10 @@ export type CommandInput =
       input: Omit<StateCheckIn, 'id' | 'beyondDayId' | 'recordedAt'>;
     }
   | { name: 'LOG_WATER'; input: { amountOz: number } }
+  | {
+      name: 'CORRECT_WATER_LOG';
+      input: { originalEventId: UUID; supersedesEventId: UUID; amountOz: number };
+    }
   | { name: 'PROTEIN_ACTION'; input: { grams: number } }
   | { name: 'LOG_SLEEP'; input: { durationMinutes: number } }
   | {
@@ -32,6 +37,7 @@ export type CommandInput =
         | 'MARK_WORK_ENDED'
         | 'REASSESS'
         | 'LOG_WATER'
+        | 'CORRECT_WATER_LOG'
         | 'PROTEIN_ACTION'
         | 'LOG_SLEEP'
       >;
