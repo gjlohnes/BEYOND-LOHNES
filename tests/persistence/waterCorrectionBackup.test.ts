@@ -25,7 +25,7 @@ describe('V0.2 water correction backup compatibility', () => {
     const day = await startDay('OFF_DUTY');
     await logWater(day.id, 160);
     await logWater(day.id, 24);
-    const entry = (await getBodyState()).waterEntries[0];
+    const entry = (await getBodyState()).waterEntries[0]!;
     expect((await correctWaterLog(day.id, entry.originalEventId, entry.currentEventId, 16)).status).toBe(
       'COMPLETED',
     );
@@ -43,7 +43,7 @@ describe('V0.2 water correction backup compatibility', () => {
 
     const restored = await getBodyState();
     expect(restored.waterOz).toBe(40);
-    expect(restored.waterEntries[0]).toMatchObject({ amountOz: 16, correctionCount: 1 });
+    expect(restored.waterEntries[0]!).toMatchObject({ amountOz: 16, correctionCount: 1 });
   });
 
   it('migrates a V0.1 data-schema-v2 backup to schema v3 without inventing corrections', async () => {
@@ -71,7 +71,7 @@ describe('V0.2 water correction backup compatibility', () => {
   it('rejects a correction chain that does not supersede the current effective fact', async () => {
     const day = await startDay('OFF_DUTY');
     await logWater(day.id, 80);
-    const entry = (await getBodyState()).waterEntries[0];
+    const entry = (await getBodyState()).waterEntries[0]!;
     await correctWaterLog(day.id, entry.originalEventId, entry.currentEventId, 16);
     const document = await createBackupDocument();
     const corrupt = {
