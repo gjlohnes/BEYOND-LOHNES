@@ -13,7 +13,7 @@ beforeEach(async () => {
 it('reports safe local version and count state', async () => {
   await startDay('UNKNOWN');
   const summary = await getDiagnosticsSummary();
-  expect(summary.dataSchemaVersion).toBe(2);
+  expect(summary.dataSchemaVersion).toBe(3);
   expect(summary.dexieDatabaseVersion).toBe(2);
   expect(summary.activeBeyondDay).toBe(true);
   expect(summary.counts.beyondDays).toBe(1);
