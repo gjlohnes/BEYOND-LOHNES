@@ -114,6 +114,25 @@ describe('BODY event logging', () => {
     expect((await getBodyState()).waterEntries[0]!.correctionCount).toBe(1);
   });
 
+  it('rejects a no-op correction so meaningless events do not enter history', async () => {
+    const day = await startDay('OFF_DUTY');
+    await logWater(day.id, 20);
+    const entry = (await getBodyState()).waterEntries[0]!;
+    const beforeCount = await db.events.where('beyondDayId').equals(day.id).count();
+
+    const result = await correctWaterLog(
+      day.id,
+      entry.originalEventId,
+      entry.currentEventId,
+      entry.amountOz,
+    );
+
+    expect(result.status).toBe('REJECTED');
+    expect(result.errorCode).toBe('NO_CORRECTION_CHANGE');
+    expect(await db.events.where('beyondDayId').equals(day.id).count()).toBe(beforeCount);
+    expect((await getBodyState()).waterEntries[0]!.correctionCount).toBe(0);
+  });
+
   it('preserves repeated sleep facts without erasing history', async () => {
     const day = await startDay('OFF_DUTY');
 
