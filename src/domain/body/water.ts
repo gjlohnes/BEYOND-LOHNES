@@ -68,7 +68,9 @@ export function deriveEffectiveWaterEntries(events: DomainEvent[]): WaterEntry[]
         );
         if (next.length !== 1) break;
         const candidate = next[0];
-        const payload = correctionPayload(candidate)!;
+        if (!candidate) break;
+        const payload = correctionPayload(candidate);
+        if (!payload) break;
         entry = {
           ...entry,
           currentEventId: candidate.id,
