@@ -1,11 +1,13 @@
 import Dexie from 'dexie';
 import { db } from '../../persistence/db';
+import { deriveEffectiveWaterEntries, effectiveWaterTotal, type WaterEntry } from '../../domain/body/water';
 import { executeCommand } from '../commands/executeCommand';
 import { completeRecoverySession, startRecoverySession } from './workoutService';
 
 export interface BodyState {
   dayId: string | null;
   waterOz: number;
+  waterEntries: WaterEntry[];
   proteinGrams: number;
   sleepMinutes: number | null;
   recoveryMinutes: number;
@@ -18,6 +20,7 @@ export async function getBodyState(): Promise<BodyState> {
     return {
       dayId: null,
       waterOz: 0,
+      waterEntries: [],
       proteinGrams: 0,
       sleepMinutes: null,
       recoveryMinutes: 0,
@@ -35,17 +38,12 @@ export async function getBodyState(): Promise<BodyState> {
       .filter((session) => session.sessionType === 'RECOVERY')
       .toArray(),
   ]);
-  let waterOz = 0;
+  const waterEntries = deriveEffectiveWaterEntries(events);
+  const waterOz = effectiveWaterTotal(events);
   let proteinGrams = 0;
   let sleepMinutes: number | null = null;
 
   for (const event of events) {
-    if (event.type === 'WATER_LOGGED') {
-      const amountOz = (event.payload as { amountOz?: unknown }).amountOz;
-      if (typeof amountOz === 'number' && Number.isFinite(amountOz) && amountOz > 0) {
-        waterOz += amountOz;
-      }
-    }
     if (event.type === 'PROTEIN_ACTION_LOGGED') {
       const grams = (event.payload as { grams?: unknown }).grams;
       if (typeof grams === 'number' && Number.isFinite(grams) && grams > 0) {
@@ -73,6 +71,7 @@ export async function getBodyState(): Promise<BodyState> {
   return {
     dayId: day.id,
     waterOz,
+    waterEntries,
     proteinGrams,
     sleepMinutes,
     recoveryMinutes,
@@ -87,6 +86,21 @@ export async function logWater(dayId: string, amountOz: number) {
     beyondDayId: dayId,
     issuedAt: new Date().toISOString(),
     input: { amountOz },
+  });
+}
+
+export async function correctWaterLog(
+  dayId: string,
+  originalEventId: string,
+  supersedesEventId: string,
+  amountOz: number,
+) {
+  return executeCommand({
+    id: crypto.randomUUID(),
+    name: 'CORRECT_WATER_LOG',
+    beyondDayId: dayId,
+    issuedAt: new Date().toISOString(),
+    input: { originalEventId, supersedesEventId, amountOz },
   });
 }
 
