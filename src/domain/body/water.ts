@@ -17,55 +17,73 @@ function positiveAmount(payload: unknown): number | null {
     : null;
 }
 
-export function compareDomainEvents(a: DomainEvent, b: DomainEvent) {
-  return (
-    a.occurredAt.localeCompare(b.occurredAt) ||
-    a.recordedAt.localeCompare(b.recordedAt) ||
-    a.id.localeCompare(b.id)
-  );
+function correctionPayload(event: DomainEvent) {
+  if (event.type !== 'WATER_LOG_CORRECTED' || !event.payload || typeof event.payload !== 'object')
+    return null;
+  const { originalEventId, supersedesEventId } = event.payload as {
+    originalEventId?: unknown;
+    supersedesEventId?: unknown;
+  };
+  const amountOz = positiveAmount(event.payload);
+  if (
+    typeof originalEventId !== 'string' ||
+    typeof supersedesEventId !== 'string' ||
+    amountOz === null
+  )
+    return null;
+  return { originalEventId, supersedesEventId, amountOz };
 }
 
 export function deriveEffectiveWaterEntries(events: DomainEvent[]): WaterEntry[] {
-  const entries = new Map<string, WaterEntry>();
+  const originals = events
+    .filter((event) => event.type === 'WATER_LOGGED')
+    .map((event) => ({ event, amountOz: positiveAmount(event.payload) }))
+    .filter((candidate): candidate is { event: DomainEvent; amountOz: number } => candidate.amountOz !== null);
 
-  for (const event of [...events].sort(compareDomainEvents)) {
-    if (event.type === 'WATER_LOGGED') {
-      const amountOz = positiveAmount(event.payload);
-      if (amountOz === null) continue;
-      entries.set(event.id, {
-        originalEventId: event.id,
-        currentEventId: event.id,
-        amountOz,
-        loggedAt: event.occurredAt,
-        correctionCount: 0,
-      });
-      continue;
-    }
-
-    if (event.type !== 'WATER_LOG_CORRECTED') continue;
-    const payload = event.payload as {
-      originalEventId?: unknown;
-      supersedesEventId?: unknown;
-      amountOz?: unknown;
-    };
-    if (typeof payload.originalEventId !== 'string' || typeof payload.supersedesEventId !== 'string')
-      continue;
-    const amountOz = positiveAmount(event.payload);
-    if (amountOz === null) continue;
-    const entry = entries.get(payload.originalEventId);
-    if (!entry || entry.currentEventId !== payload.supersedesEventId) continue;
-    entries.set(payload.originalEventId, {
-      ...entry,
-      currentEventId: event.id,
-      amountOz,
-      correctedAt: event.occurredAt,
-      correctionCount: entry.correctionCount + 1,
-    });
+  const correctionsByOriginal = new Map<string, DomainEvent[]>();
+  for (const event of events) {
+    const payload = correctionPayload(event);
+    if (!payload) continue;
+    const group = correctionsByOriginal.get(payload.originalEventId) ?? [];
+    group.push(event);
+    correctionsByOriginal.set(payload.originalEventId, group);
   }
 
-  return [...entries.values()].sort(
-    (a, b) => a.loggedAt.localeCompare(b.loggedAt) || a.originalEventId.localeCompare(b.originalEventId),
-  );
+  return originals
+    .map(({ event: original, amountOz }) => {
+      let entry: WaterEntry = {
+        originalEventId: original.id,
+        currentEventId: original.id,
+        amountOz,
+        loggedAt: original.occurredAt,
+        correctionCount: 0,
+      };
+      const remaining = new Map(
+        (correctionsByOriginal.get(original.id) ?? []).map((correction) => [correction.id, correction]),
+      );
+
+      while (remaining.size > 0) {
+        const next = [...remaining.values()].filter(
+          (candidate) => correctionPayload(candidate)?.supersedesEventId === entry.currentEventId,
+        );
+        if (next.length !== 1) break;
+        const candidate = next[0];
+        const payload = correctionPayload(candidate)!;
+        entry = {
+          ...entry,
+          currentEventId: candidate.id,
+          amountOz: payload.amountOz,
+          correctedAt: candidate.occurredAt,
+          correctionCount: entry.correctionCount + 1,
+        };
+        remaining.delete(candidate.id);
+      }
+
+      return entry;
+    })
+    .sort(
+      (a, b) => a.loggedAt.localeCompare(b.loggedAt) || a.originalEventId.localeCompare(b.originalEventId),
+    );
 }
 
 export function effectiveWaterTotal(events: DomainEvent[]) {
