@@ -80,8 +80,10 @@ function assertWaterCorrectionIntegrity(document: BackupDocument) {
           (event.payload as { supersedesEventId: string }).supersedesEventId === currentEventId,
       );
       if (next.length !== 1) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
-      currentEventId = next[0].id;
-      remaining.delete(next[0].id);
+      const nextEvent = next[0];
+      if (!nextEvent) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+      currentEventId = nextEvent.id;
+      remaining.delete(nextEvent.id);
     }
   }
 }
@@ -165,6 +167,13 @@ function withSchemaMeta(document: BackupDocument, version: number) {
   return [...meta, { key: 'schemaVersion', value: version }];
 }
 
+function currentSchemaMeta(meta: Array<{ key: string; value: unknown }>) {
+  return [
+    ...meta.filter((record) => record.key !== 'schemaVersion'),
+    { key: 'schemaVersion', value: DATA_SCHEMA_VERSION },
+  ];
+}
+
 function migrateDocument(document: BackupDocument): BackupDocument {
   if (document.formatVersion !== BACKUP_FORMAT_VERSION)
     throw new Error('UNSUPPORTED_BACKUP_FORMAT_VERSION');
@@ -221,7 +230,7 @@ export async function createBackupDocument(): Promise<BackupDocument> {
       appVersion: APP_VERSION,
       dataSchemaVersion: DATA_SCHEMA_VERSION,
       payload: {
-        meta: meta.map(assertValidMeta),
+        meta: currentSchemaMeta(meta).map(assertValidMeta),
         beyondDays: beyondDays.map(assertValidBeyondDay),
         events: events.map(assertValidEvent),
         recommendations: recommendations.map(assertValidRecommendation),
