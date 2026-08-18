@@ -1,124 +1,114 @@
-# BEYOND V0.1 Implementation Status
+# BEYOND V0.2 Implementation Status
 
-## Release state
-Branch: `agent/v0.1-foundation-field-001`
+## Release baseline
+V0.1 is merged to `main` at `a0bebc90f74f591cb4a0630eb9093ee73e447c32` and remains the stable architectural baseline.
 
-PR #1 remains **draft, open, mergeable, and unmerged** pending Gavin's explicit merge decision.
+V0.2 work is isolated on branch `agent/v0.2-trust-feel-001` in draft PR #2. It is **not merged** and requires Android real-device acceptance plus explicit user approval before merge.
 
-V0.1 implementation and release acceptance are complete. No known release-blocking product, persistence, offline, or mobile-layout defect remains.
+## TRUST & FEEL 001 objective
+The first V0.2 vertical slice addresses evidence from real use rather than adding a new product module:
+- safely correct a mistaken BODY hydration entry without silently mutating historical truth;
+- make meaningful TODAY/BODY actions visibly respond while work is pending and after success/failure;
+- begin the sharper tactical visual refinement using reusable BEYOND-owned interaction and style primitives;
+- preserve deterministic Engine authority, offline behavior, backup safety, and the released V0.1 architecture.
 
-## Implemented V0.1 baseline
-- React/Vite/TypeScript phone-first PWA with HashRouter and TODAY / TRAIN / BODY / MORE navigation.
-- Local-first/offline-first operation with no backend, account, cloud-sync, analytics, or AI-provider dependency.
-- Explicit wake-to-sleep BeyondDay lifecycle with START DAY / START WORK DAY / END DAY and active-flow close protection.
-- State Check-In: energy, stress, mood, soreness, alcohol urge; deterministic GREEN / YELLOW / RED capacity derivation.
-- Pure deterministic Engine with one primary recommendation and first-class NO ACTION REQUIRED.
-- Decision Trace / WHY evidence for recommendations.
-- Recommendation ACCEPT / DISMISS / OVERRIDE / NO ACTION decision history and outcomes.
-- RESET and SHIFT DOWN start/completion flows reconstructible from committed history after reload.
-- Explicit WORK_PERIOD_ENDED fact and deterministic post-shift SHIFT DOWN behavior; no time, GPS, schedule, or inactivity inference.
-- Accepted RECOVER recommendations operationalize the existing RECOVERY_SESSION path instead of dead-ending at the decision.
-- Recommendation-driven recovery now preserves recommendation attribution through recovery start and terminal COMPLETED / PARTIAL / ABANDONED outcome evidence.
-- MINIMUM DAY with HYDRATE, PROTEIN, MEDS, HYGIENE, MOVE, and RECOVER / CONNECT; existing evidence can satisfy applicable minimums and sensitive detail is not stored.
-- BODY essentials: water, protein, manual primary-sleep duration, recovery duration.
-- TRAIN sequential A/B/C machine-oriented sessions, STANDARD / REDUCED / RECOVERY modes, performed-set truth, previous-performance context, advisory deterministic progression, session history, persistence, and offline behavior.
-- Dexie/IndexedDB persistence with released V1 registration and additive V2 workout stores; tested V1→V2 migration preserves existing history.
-- Application-owned `BEYOND_BACKUP` format v1 with data-schema-v2 content, validation-before-mutation, relationship-integrity checks, explicit count preview, replace-only restore, pre-restore safety export, transactional replacement, and v1→v2 backup compatibility migration.
-- Local diagnostics for application, Engine, data schema, backup format, Dexie version, active day, and record counts.
-- PWA installability, generated service worker, application-shell precache, prompt update mode, and mainline GitHub Pages deployment.
-- Phone layout includes narrow-viewport overflow protection and CSS safe-area handling.
-- Repository README records build commands, product-authority boundary, privacy/data posture, and the deliberate V0.1 no-open-source-license decision.
+## Correction contract
+Hydration correction is append-only domain history:
+- `WATER_LOGGED` remains the immutable original fact.
+- `CORRECT_WATER_LOG` emits `WATER_LOG_CORRECTED` with the original/root event identity, the currently effective event being superseded, and the replacement amount.
+- Effective hydration is derived deterministically by following the correction chain rather than by deleting or rewriting prior events.
+- Repeated corrections form one linear chain.
+- Competing corrections against the same current fact cannot fork history: the stale attempt is rejected with `STALE_CORRECTION_TARGET`.
+- A correction that supplies the already-effective amount is rejected with `NO_CORRECTION_CHANGE`; it earns no event storage.
+- BODY totals and MINIMUM DAY HYDRATE derive from the same effective-water truth.
+- HISTORY exposes correction events as legible correction evidence.
 
-## Real-data audit — 2026-08-17
-Source: real user-exported BEYOND backup, backup format v1, app v0.1.0, data schema v2.
+## Data/version contract
+- Application version: `0.2.0`.
+- Application data schema: **v3** because a new persisted domain event/command semantic now exists.
+- Dexie database version: **V2 remains current**. No table, index, or storage-layout change exists; Dexie V3 would be artificial.
+- Backup format: **BEYOND_BACKUP v1 remains current**.
+- Existing data-schema-v2 backups migrate in memory to v3 without inventing correction events.
+- Startup updates the application schema metadata from 2 to 3 while leaving Dexie V2 intact.
+- Backup validation rejects orphaned, forked, gapped, or otherwise ambiguous water-correction chains before restore.
+- Replace restore remains validation-first, explicit-confirmation, pre-restore-safety-export, transactional replacement.
 
-Observed snapshot:
-- 1 active BeyondDay
-- 69 events
-- 15 recommendations
-- 5 outcomes
-- 0 workout sessions / performed sets in that snapshot
-- 15 REASSESS starts paired with 15 completions
-- 15 state check-ins paired with 15 issued recommendations
-- 14 RECOVER recommendations and 1 NO_ACTION_REQUIRED recommendation
-- 3 recommendation acceptances, 1 recorded NO ACTION, and one complete RESET lifecycle
+## Interaction certainty
+A small BEYOND-owned `ActionButton` primitive now provides reusable:
+- pressed/touch feedback;
+- pending/working state and visible working label;
+- `aria-busy` state;
+- disabled state and duplicate-submit protection;
+- primary / secondary / quiet / danger hierarchy;
+- keyboard focus visibility.
 
-Classification:
-- BeyondDay lifecycle: coherent.
-- Repeated REASSESS/check-in/recommendation sequences: **classification 2 — harmless development/usage noise**, not corruption. They are distinct explicit user submissions with distinct command correlations and complete command chains.
-- Command correlation/causation in sampled REASSESS and RESET flows: coherent.
-- Capacity/recommendation behavior: deterministic and consistent with the locked rules; YELLOW produced RECOVER and the final GREEN check-in produced NO_ACTION_REQUIRED.
-- NO_ACTION_REQUIRED: correctly persisted as a recommendation plus user NO_ACTION decision/outcome.
-- Schema/version/export envelope: consistent; no Dexie V3 or new backup format was justified.
-- Defect exposed by real use: accepted RECOVER originally stored the decision without entering recovery. Corrected within the existing domain model.
-- Final release audit exposed the deeper follow-through gap: recovery completion was not attributable to the recommendation that initiated it. Corrected by carrying the recommendation identity through the persisted recovery-start evidence and terminal outcome. No new table, schema version, dependency, or product concept was required.
+TODAY applies the pattern to START DAY, START WORK DAY, REASSESS, recommendation decisions/overrides, SHIFT ENDED, SHIFT DOWN, and END DAY. BODY applies it to hydration, correction, protein, sleep, and recovery actions. Both surfaces use explicit live-region success/error feedback so an action does not silently disappear after a tap.
 
-## Real-device acceptance — PASS
-Completed on the actual Android PWA:
-- install/add-to-home-screen standalone launch
-- deployed-update state survival
-- offline launch and cold reopen
-- offline deterministic TODAY behavior, WHY, and decision persistence
-- backup JSON export/download and Android file handoff
-- backup file selection and validation
-- record-count preview
-- confirmed destructive REPLACE RESTORE with automatic pre-restore safety export
-- post-restore reconstruction of the active BeyondDay and restored data
-- TODAY / TRAIN / BODY / MORE verification after restore
-- full application close followed by networking-disabled cold reopen with restored state still available
+## Focused visual foundation
+TODAY and BODY now establish the V0.2 visual direction without a wholesale redesign:
+- near-black layered canvas and sharper panel surfaces;
+- restrained BEYOND red as primary identity/action color;
+- stronger tactical eyebrow/card-kicker hierarchy;
+- clearer primary/secondary/quiet action distinction;
+- compact BODY metric grid;
+- stronger focus, pressed, disabled, success, error, and warning states;
+- narrow-phone and safe-area behavior preserved;
+- reduced-motion support preserved.
 
-The destructive restore and offline cold-open gate is complete. It must not be listed as pending in future release notes.
+The Legacy Prototype Design & Product Reference remains inspiration only. TODAY / TRAIN / BODY / MORE and the released architecture remain unchanged.
 
-## Final release audit
-The complete PR scope was reviewed against the Canonical Spec, Decision Register, Implementation Roadmap, Research & Reuse Register, Workspace Guide, V0.1 Foundation Build Spec, real backup evidence, and real-device acceptance.
+## Open-source reuse outcome
+Trust & Feel 001 added **zero new runtime dependencies** and made no package-lock dependency change.
 
-Findings and corrections:
-- No unintended post-V0.1 feature expansion was identified.
-- No backend, account system, cloud sync, AI provider, MONEY module, analytics SDK, broad health platform, new state library, or speculative abstraction was introduced.
-- Deterministic Engine authority remains intact; UI/service code operationalizes decisions but does not replace Engine rule selection.
-- Event/history architecture remains domain-focused; repeated explicit user actions are not silently deduplicated.
-- Recommendation → decision → command → outcome linkage is coherent for RESET, SHIFT DOWN, and recommendation-driven RECOVERY after the release-audit correction.
-- Backup/restore remains application-owned, validated, versioned, and replace-only with a pre-restore recovery point.
-- Offline/PWA behavior is supported by automated browser tests and actual Android cold-open acceptance.
-- The narrow-screen MORE/Diagnostics overflow found during Android restore testing is fixed and protected by a 360px Playwright regression test.
-- Branch-only preview CI/deployment scaffolding was removed. Validation now runs on pull requests and `main`; production Pages deployment is `main`-driven.
-- No `TODO`, `FIXME`, `console.log`, or debugger residue was found in the reviewed PR patch.
-- Generated build/test artifacts remain excluded by `.gitignore`.
-- Dependency choices remain within the locked Foundation Build Spec.
+The approved candidates were tested against an actual implementation need before installation:
+- Sonner: eligible, not adopted yet. Local live-region feedback currently solves the problem with less dependency cost.
+- Lucide React: eligible, not adopted yet. Text-first correction/action affordances remain clearer in this slice.
+- Radix Primitives: selectively eligible, not adopted yet. Inline progressive disclosure avoids a modal/focus-layer dependency for hydration correction.
+- Recharts: still deferred until a concrete History & Insight question earns charting infrastructure.
+
+This is an evidence-driven application of the dependency gate, not a reversal of the reuse audit.
+
+## Automated coverage added/updated
+Domain/persistence coverage now proves:
+- original hydration facts remain stored after correction;
+- effective totals use replacement truth;
+- repeated corrections remain deterministic;
+- concurrent stale correction attempts cannot branch history;
+- no-op corrections do not earn event storage;
+- MINIMUM DAY hydration follows effective corrected truth;
+- invalid corrections fail safely;
+- application schema metadata upgrades from 2→3 without Dexie V3;
+- v2 backup migration to v3 preserves existing V0.1 data without inventing corrections;
+- corrected history exports and replace-restores to the same effective truth;
+- malformed correction relationships are rejected before restore.
+
+Playwright coverage includes the complete user correction workflow: log a mistaken hydration value, correct it, see the effective total update, reload, verify legible correction history, then cold-reload offline with the corrected truth intact. Existing V0.1 FIELD, BODY, TRAIN, MINIMUM DAY, recommendation, work-transition, backup/restore, and narrow-mobile tests remain in the suite.
 
 ## Validation
-Release-audit head `e29f670c854e972658cf756b2a7905bc4c497d25` passed Node 24 GitHub Actions validation:
+Code-bearing head `811c5c243598a6b7ad8e79ffe65da580599d5176` passed the complete Node 24 GitHub Actions suite:
 - `npm ci`: PASS — 486 packages audited, 0 vulnerabilities reported.
 - ESLint: PASS.
-- Vitest: **18 files / 61 tests PASS**.
-- TypeScript project build: PASS.
+- Vitest: **19 files / 70 tests PASS**.
+- TypeScript strict project build: PASS.
 - Vite production PWA build: PASS.
-- PWA generateSW: PASS — 7 application-shell entries precached.
-- Playwright: **16/16 PASS**.
+- Production app bundle: 482.24 kB JS / 144.04 kB gzip; 6.84 kB CSS / 2.31 kB gzip.
+- PWA `generateSW`: PASS — 7 application-shell entries precached.
+- Playwright: **17/17 PASS**.
 
-Browser coverage includes FIELD/offline/reload, accepted recovery, decision persistence, backup validation/restore, invalid-backup rejection, BODY sleep/water/protein/recovery, TRAIN standard/reduced flows, performed-set persistence and A→B rotation, MINIMUM DAY, recommendation overrides, narrow-phone MORE layout, and WORK → SHIFT ENDED → REASSESS → SHIFT DOWN.
+The GitHub Actions runtime continues to emit the pre-existing non-blocking warning for action implementations targeting an older Node runtime while the project itself executes on Node 24. No action-major upgrade was introduced without a separate compatibility review.
 
-The new deterministic test specifically proves recommendation attribution survives through a completed recovery outcome.
+## Scope deliberately not added
+Trust & Feel 001 does not add Mission Queue, MONEY, AI/LLM, accounts/backend, cloud sync, calendar, wearables, broad HOME/LIFE systems, Recharts/trend dashboards, or unrelated feature expansion.
 
-## Intentionally deferred / known non-blocking limitations
-- AI/LLM, accounts/backend, cloud sync, MONEY, calendar/email/wearables, voice, Mission Queue, broad household systems, plugins, rich analytics, gamification, and other post-V0.1 modules.
-- Advanced sleep data: stages, quality scores, naps, bedtime/wake analytics, wearable sleep, goals/streaks.
-- Rich visual polish and the legacy-prototype-inspired interface density are future design work, not V0.1 release blockers.
-- No Dexie V3 exists; V2 remains current until a real storage requirement earns another migration.
-- No open-source license is granted at V0.1; a future licensing change requires an explicit LICENSE file.
-- GitHub currently emits a non-blocking deprecation warning because `actions/checkout@v4` and `actions/setup-node@v4` themselves target the older Actions Node runtime even though the project runs Node 24. This is release-infrastructure maintenance, not an application failure; do not change action majors without verifying the official supported versions.
+Correction is intentionally implemented for hydration first. Protein, sleep, workout-set, and other correction workflows remain candidates only after this first contract passes real-device use and proves the interaction model.
 
-## Merge recommendation
-**RECOMMEND MERGE.**
+## Documentation decisions
+The Decision Register now records the V0.2 correction/supersession doctrine. The Research & Reuse Register records the zero-dependency implementation evidence and preserves Sonner/Lucide/Radix as eligible rather than mandatory. The Implementation Roadmap now identifies V0.1 as the merged baseline and Trust & Feel 001 as the active V0.2 slice.
 
-V0.1 satisfies the locked release boundary, automated validation is green, real backup/restore behavior is proven on Android, offline cold-open behavior is proven on Android, and the final audit defects have been corrected without expanding scope.
+## Current gate
+Automated validation is green. The remaining gate is real-device Android acceptance of the V0.2 candidate, including existing V0.1 data survival, correction interaction, offline reconstruction, and correction-aware backup/restore.
 
-Do not merge automatically. The merge remains a deliberate user decision.
+**Do not merge PR #2 before that acceptance passes and the user explicitly approves the merge.**
 
-## Exact post-merge next step
-After explicit approval and merge to `main`:
-1. Verify the `main` validation workflow is green.
-2. Verify the `main` GitHub Pages deployment completes successfully.
-3. Open/update the installed Android PWA from the mainline deployment and confirm the release loads with existing local data intact.
-4. Mark V0.1 as the stable baseline/recovery point.
-5. Begin a short real-use evidence period before committing V0.2 scope: use BEYOND normally, capture friction/overrides/outcomes, and use that evidence plus the saved Legacy Prototype Design & Product Reference to select the smallest highest-value V0.2 slice.
+## Android acceptance target
+Deploy the candidate branch through the existing manual GitHub Pages workflow, verify the installed PWA upgrades with V0.1 local data intact, exercise a deliberate 160 oz → 16 oz hydration correction, confirm history and effective totals, cold-open offline, then export/validate/replace-restore a v0.2 backup and confirm the correction survives reconstruction. If the candidate is not merged after testing, redeploy `main` to return Pages to the V0.1 baseline.

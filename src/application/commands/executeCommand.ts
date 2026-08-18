@@ -53,6 +53,57 @@ function isMinimumItemKey(value: unknown): value is MinimumItemKey {
   return typeof value === 'string' && MINIMUM_ITEM_KEYS.includes(value as MinimumItemKey);
 }
 
+function isUuid(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+function waterAmount(event: DomainEvent | undefined) {
+  if (!event || !event.payload || typeof event.payload !== 'object') return null;
+  const amountOz = (event.payload as { amountOz?: unknown }).amountOz;
+  return typeof amountOz === 'number' && Number.isFinite(amountOz) && amountOz > 0
+    ? amountOz
+    : null;
+}
+
+async function correctionTargetIsCurrent(
+  beyondDayId: string,
+  originalEventId: string,
+  supersedesEventId: string,
+) {
+  const events = await db.events.where('beyondDayId').equals(beyondDayId).toArray();
+  const original = events.find(
+    (candidate) => candidate.id === originalEventId && candidate.type === 'WATER_LOGGED',
+  );
+  if (!original) return false;
+
+  const remaining = new Map(
+    events
+      .filter((candidate) => {
+        if (candidate.type !== 'WATER_LOG_CORRECTED') return false;
+        return (candidate.payload as { originalEventId?: unknown }).originalEventId === originalEventId;
+      })
+      .map((candidate) => [candidate.id, candidate]),
+  );
+  let currentEventId = original.id;
+
+  while (remaining.size > 0) {
+    const next = [...remaining.values()].filter(
+      (candidate) =>
+        (candidate.payload as { supersedesEventId?: unknown }).supersedesEventId === currentEventId,
+    );
+    if (next.length !== 1) return false;
+    const nextEvent = next[0];
+    if (!nextEvent) return false;
+    currentEventId = nextEvent.id;
+    remaining.delete(nextEvent.id);
+  }
+
+  return currentEventId === supersedesEventId;
+}
+
 async function persistCommandResult(
   command: Command,
   result: CommandResult,
@@ -74,6 +125,30 @@ async function persistCommandResult(
         .filter((candidate) => candidate.type === 'WORK_PERIOD_ENDED')
         .first();
       if (alreadyEnded) return rejected(command, 'WORK_ALREADY_ENDED');
+    }
+
+    const correction = result.emittedEvents.find(
+      (candidate) => candidate.type === 'WATER_LOG_CORRECTED',
+    );
+    if (correction && command.beyondDayId) {
+      const payload = correction.payload as {
+        originalEventId: string;
+        supersedesEventId: string;
+        amountOz: number;
+      };
+      if (
+        !(await correctionTargetIsCurrent(
+          command.beyondDayId,
+          payload.originalEventId,
+          payload.supersedesEventId,
+        ))
+      ) {
+        return rejected(command, 'STALE_CORRECTION_TARGET');
+      }
+      const target = await db.events.get(payload.supersedesEventId);
+      if (waterAmount(target) === payload.amountOz) {
+        return rejected(command, 'NO_CORRECTION_CHANGE');
+      }
     }
 
     if (result.emittedEvents.length > 0) await db.events.bulkAdd(result.emittedEvents);
@@ -205,6 +280,23 @@ export async function executeCommand(
         command,
         'USER',
         { commandId: command.id, amountOz },
+        started.id,
+      ),
+    );
+  } else if (command.name === 'CORRECT_WATER_LOG') {
+    const { originalEventId, supersedesEventId, amountOz } = command.input as {
+      originalEventId?: unknown;
+      supersedesEventId?: unknown;
+      amountOz?: unknown;
+    };
+    if (!isUuid(originalEventId) || !isUuid(supersedesEventId) || !positiveNumber(amountOz))
+      return invalidInput(command, started);
+    emitted.push(
+      event(
+        'WATER_LOG_CORRECTED',
+        command,
+        'USER',
+        { commandId: command.id, originalEventId, supersedesEventId, amountOz },
         started.id,
       ),
     );

@@ -49,6 +49,45 @@ function assertUnique(values: string[]) {
   if (new Set(values).size !== values.length) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
 }
 
+function assertWaterCorrectionIntegrity(document: BackupDocument) {
+  const originalById = new Map(
+    document.payload.events
+      .filter((event) => event.type === 'WATER_LOGGED' && event.beyondDayId)
+      .map((event) => [event.id, event]),
+  );
+  const correctionsByOriginal = new Map<string, typeof document.payload.events>();
+
+  for (const event of document.payload.events) {
+    if (event.type !== 'WATER_LOG_CORRECTED') continue;
+    const payload = event.payload as {
+      originalEventId: string;
+      supersedesEventId: string;
+    };
+    const original = originalById.get(payload.originalEventId);
+    if (!original || !event.beyondDayId || original.beyondDayId !== event.beyondDayId)
+      throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+    const group = correctionsByOriginal.get(payload.originalEventId) ?? [];
+    group.push(event);
+    correctionsByOriginal.set(payload.originalEventId, group);
+  }
+
+  for (const [originalEventId, corrections] of correctionsByOriginal) {
+    let currentEventId = originalEventId;
+    const remaining = new Map(corrections.map((event) => [event.id, event]));
+    while (remaining.size > 0) {
+      const next = [...remaining.values()].filter(
+        (event) =>
+          (event.payload as { supersedesEventId: string }).supersedesEventId === currentEventId,
+      );
+      if (next.length !== 1) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+      const nextEvent = next[0];
+      if (!nextEvent) throw new Error('INVALID_BACKUP_RELATIONSHIPS');
+      currentEventId = nextEvent.id;
+      remaining.delete(nextEvent.id);
+    }
+  }
+}
+
 function assertBackupIntegrity(document: BackupDocument): BackupDocument {
   const { payload } = document;
 
@@ -86,6 +125,8 @@ function assertBackupIntegrity(document: BackupDocument): BackupDocument {
     }
   }
 
+  assertWaterCorrectionIntegrity(document);
+
   for (const recommendation of payload.recommendations) {
     if (!dayById.has(recommendation.beyondDayId))
       throw new Error('INVALID_BACKUP_RELATIONSHIPS');
@@ -121,28 +162,51 @@ function assertBackupIntegrity(document: BackupDocument): BackupDocument {
   return document;
 }
 
+function withSchemaMeta(document: BackupDocument, version: number) {
+  const meta = document.payload.meta.filter((record) => record.key !== 'schemaVersion');
+  return [...meta, { key: 'schemaVersion', value: version }];
+}
+
+function currentSchemaMeta(meta: Array<{ key: string; value: unknown }>) {
+  return [
+    ...meta.filter((record) => record.key !== 'schemaVersion'),
+    { key: 'schemaVersion', value: DATA_SCHEMA_VERSION },
+  ];
+}
+
 function migrateDocument(document: BackupDocument): BackupDocument {
   if (document.formatVersion !== BACKUP_FORMAT_VERSION)
     throw new Error('UNSUPPORTED_BACKUP_FORMAT_VERSION');
   if (document.dataSchemaVersion > DATA_SCHEMA_VERSION)
     throw new Error('UNSUPPORTED_FUTURE_DATA_SCHEMA_VERSION');
   if (document.dataSchemaVersion < 1) throw new Error('BACKUP_MIGRATION_NOT_AVAILABLE');
-  if (document.dataSchemaVersion === DATA_SCHEMA_VERSION) return assertBackupIntegrity(document);
-  if (document.dataSchemaVersion === 1) {
-    const meta = document.payload.meta.filter((record) => record.key !== 'schemaVersion');
-    return assertBackupIntegrity(
-      backupSchema.parse({
-        ...document,
-        dataSchemaVersion: 2,
-        payload: {
-          ...document.payload,
-          meta: [...meta, { key: 'schemaVersion', value: 2 }],
-          workoutSessions: [],
-          performedSets: [],
-        },
-      }),
-    );
+
+  let migrated = document;
+  if (migrated.dataSchemaVersion === 1) {
+    migrated = backupSchema.parse({
+      ...migrated,
+      dataSchemaVersion: 2,
+      payload: {
+        ...migrated.payload,
+        meta: withSchemaMeta(migrated, 2),
+        workoutSessions: [],
+        performedSets: [],
+      },
+    });
   }
+
+  if (migrated.dataSchemaVersion === 2) {
+    migrated = backupSchema.parse({
+      ...migrated,
+      dataSchemaVersion: 3,
+      payload: {
+        ...migrated.payload,
+        meta: withSchemaMeta(migrated, 3),
+      },
+    });
+  }
+
+  if (migrated.dataSchemaVersion === DATA_SCHEMA_VERSION) return assertBackupIntegrity(migrated);
   throw new Error('BACKUP_MIGRATION_NOT_AVAILABLE');
 }
 
@@ -166,7 +230,7 @@ export async function createBackupDocument(): Promise<BackupDocument> {
       appVersion: APP_VERSION,
       dataSchemaVersion: DATA_SCHEMA_VERSION,
       payload: {
-        meta: meta.map(assertValidMeta),
+        meta: currentSchemaMeta(meta).map(assertValidMeta),
         beyondDays: beyondDays.map(assertValidBeyondDay),
         events: events.map(assertValidEvent),
         recommendations: recommendations.map(assertValidRecommendation),
