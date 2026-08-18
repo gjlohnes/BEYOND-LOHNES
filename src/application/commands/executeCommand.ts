@@ -60,37 +60,35 @@ function isUuid(value: unknown): value is string {
   );
 }
 
-function compareEvents(a: DomainEvent, b: DomainEvent) {
-  return (
-    a.occurredAt.localeCompare(b.occurredAt) ||
-    a.recordedAt.localeCompare(b.recordedAt) ||
-    a.id.localeCompare(b.id)
-  );
-}
-
 async function correctionTargetIsCurrent(
   beyondDayId: string,
   originalEventId: string,
   supersedesEventId: string,
 ) {
-  const events = (
-    await db.events.where('beyondDayId').equals(beyondDayId).toArray()
-  ).sort(compareEvents);
+  const events = await db.events.where('beyondDayId').equals(beyondDayId).toArray();
   const original = events.find(
     (candidate) => candidate.id === originalEventId && candidate.type === 'WATER_LOGGED',
   );
   if (!original) return false;
 
+  const remaining = new Map(
+    events
+      .filter((candidate) => {
+        if (candidate.type !== 'WATER_LOG_CORRECTED') return false;
+        return (candidate.payload as { originalEventId?: unknown }).originalEventId === originalEventId;
+      })
+      .map((candidate) => [candidate.id, candidate]),
+  );
   let currentEventId = original.id;
-  for (const candidate of events) {
-    if (candidate.type !== 'WATER_LOG_CORRECTED') continue;
-    const payload = candidate.payload as {
-      originalEventId?: unknown;
-      supersedesEventId?: unknown;
-    };
-    if (payload.originalEventId !== originalEventId) continue;
-    if (payload.supersedesEventId !== currentEventId) return false;
-    currentEventId = candidate.id;
+
+  while (remaining.size > 0) {
+    const next = [...remaining.values()].filter(
+      (candidate) =>
+        (candidate.payload as { supersedesEventId?: unknown }).supersedesEventId === currentEventId,
+    );
+    if (next.length !== 1) return false;
+    currentEventId = next[0].id;
+    remaining.delete(next[0].id);
   }
 
   return currentEventId === supersedesEventId;
