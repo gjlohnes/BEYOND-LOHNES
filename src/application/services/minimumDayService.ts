@@ -1,5 +1,6 @@
 import { executeCommand } from '../commands/executeCommand';
 import { db } from '../../persistence/db';
+import { effectiveWaterTotal } from '../../domain/body/water';
 import {
   MINIMUM_DAY_ITEMS,
   type MinimumDayItemKey,
@@ -24,11 +25,10 @@ export async function getMinimumDayState(dayId: string): Promise<MinimumDayState
   const events = await db.events.where('beyondDayId').equals(dayId).toArray();
   const enabled = events.some((event) => event.type === 'MINIMUM_DAY_ENABLED');
   const manual = new Set<MinimumDayItemKey>();
-  let waterOz = 0;
+  const waterOz = effectiveWaterTotal(events);
   let proteinGrams = 0;
 
   for (const event of events) {
-    if (event.type === 'WATER_LOGGED') waterOz += numberFromPayload(event.payload, 'amountOz');
     if (event.type === 'PROTEIN_ACTION_LOGGED')
       proteinGrams += numberFromPayload(event.payload, 'grams');
     if (event.type === 'MINIMUM_ITEM_COMPLETED') {
