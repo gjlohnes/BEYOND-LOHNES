@@ -48,7 +48,7 @@ describe('BODY event logging', () => {
     await logWater(day.id, 160);
     await logWater(day.id, 24);
     const before = await getBodyState();
-    const mistaken = before.waterEntries[0];
+    const mistaken = before.waterEntries[0]!;
 
     const result = await correctWaterLog(
       day.id,
@@ -60,7 +60,7 @@ describe('BODY event logging', () => {
 
     const state = await getBodyState();
     expect(state.waterOz).toBe(40);
-    expect(state.waterEntries[0]).toMatchObject({
+    expect(state.waterEntries[0]!).toMatchObject({
       originalEventId: mistaken.originalEventId,
       amountOz: 16,
       correctionCount: 1,
@@ -81,18 +81,18 @@ describe('BODY event logging', () => {
   it('supports deterministic repeated corrections and keeps MINIMUM DAY on effective truth', async () => {
     const day = await startDay('OFF_DUTY');
     await logWater(day.id, 50);
-    let entry = (await getBodyState()).waterEntries[0];
+    let entry = (await getBodyState()).waterEntries[0]!;
     expect((await correctWaterLog(day.id, entry.originalEventId, entry.currentEventId, 30)).status).toBe(
       'COMPLETED',
     );
-    entry = (await getBodyState()).waterEntries[0];
+    entry = (await getBodyState()).waterEntries[0]!;
     expect((await correctWaterLog(day.id, entry.originalEventId, entry.currentEventId, 45)).status).toBe(
       'COMPLETED',
     );
 
     const state = await getBodyState();
     expect(state.waterOz).toBe(45);
-    expect(state.waterEntries[0].correctionCount).toBe(2);
+    expect(state.waterEntries[0]!.correctionCount).toBe(2);
     expect((await getMinimumDayState(day.id)).items.find((item) => item.key === 'HYDRATE')).toMatchObject({
       complete: true,
       source: 'AUTO',
@@ -102,7 +102,7 @@ describe('BODY event logging', () => {
   it('prevents two corrections from superseding the same current fact', async () => {
     const day = await startDay('OFF_DUTY');
     await logWater(day.id, 80);
-    const entry = (await getBodyState()).waterEntries[0];
+    const entry = (await getBodyState()).waterEntries[0]!;
 
     const results = await Promise.all([
       correctWaterLog(day.id, entry.originalEventId, entry.currentEventId, 16),
@@ -111,7 +111,7 @@ describe('BODY event logging', () => {
 
     expect(results.filter((result) => result.status === 'COMPLETED')).toHaveLength(1);
     expect(results.filter((result) => result.errorCode === 'STALE_CORRECTION_TARGET')).toHaveLength(1);
-    expect((await getBodyState()).waterEntries[0].correctionCount).toBe(1);
+    expect((await getBodyState()).waterEntries[0]!.correctionCount).toBe(1);
   });
 
   it('preserves repeated sleep facts without erasing history', async () => {
@@ -162,7 +162,7 @@ describe('BODY event logging', () => {
   it('rejects an invalid correction amount without changing effective truth', async () => {
     const day = await startDay('OFF_DUTY');
     await logWater(day.id, 20);
-    const entry = (await getBodyState()).waterEntries[0];
+    const entry = (await getBodyState()).waterEntries[0]!;
     const result = await correctWaterLog(day.id, entry.originalEventId, entry.currentEventId, 0);
     expect(result.status).toBe('REJECTED');
     expect(result.errorCode).toBe('INVALID_COMMAND_INPUT');
