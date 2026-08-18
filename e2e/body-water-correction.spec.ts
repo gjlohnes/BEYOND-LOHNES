@@ -26,6 +26,12 @@ test('BODY corrects a mistaken water entry and preserves effective truth offline
   await page.reload();
   await expect(page.getByText('40 oz', { exact: true })).toBeVisible();
 
+  await page.getByRole('link', { name: 'TODAY' }).click();
+  await page.getByRole('link', { name: 'VIEW HISTORY' }).click();
+  await expect(page.getByText('WATER_LOG_CORRECTED → 16 oz', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Return to TODAY' }).click();
+  await page.getByRole('link', { name: 'BODY' }).click();
+
   await page.evaluate(() => navigator.serviceWorker.ready);
   await context.setOffline(true);
   await page.reload();
