@@ -75,6 +75,7 @@ const commandNames = [
   'START_REDUCED_WORKOUT',
   'RECOVERY_SESSION',
   'LOG_WATER',
+  'CORRECT_WATER_LOG',
   'PROTEIN_ACTION',
   'LOG_SLEEP',
   'SLEEP_PROTECTION',
@@ -180,6 +181,7 @@ const eventTypes = [
   'MINIMUM_DAY_ENABLED',
   'MINIMUM_ITEM_COMPLETED',
   'WATER_LOGGED',
+  'WATER_LOG_CORRECTED',
   'PROTEIN_ACTION_LOGGED',
   'SLEEP_LOGGED',
   'WORKOUT_STARTED',
@@ -198,6 +200,12 @@ const ritualPayload = z.object({ commandId: uuid }).passthrough();
 const minimumEnabledPayload = z.object({ commandId: uuid });
 const minimumItemPayload = z.object({ commandId: uuid, key: minimumItemKey });
 const waterPayload = z.object({ commandId: uuid, amountOz: z.number().positive() });
+const waterCorrectionPayload = z.object({
+  commandId: uuid,
+  originalEventId: uuid,
+  supersedesEventId: uuid,
+  amountOz: z.number().positive(),
+});
 const proteinPayload = z.object({ commandId: uuid, grams: z.number().positive() });
 const sleepPayload = z.object({ commandId: uuid, durationMinutes: z.number().int().positive() });
 const workoutStartedPayload = z.object({
@@ -240,6 +248,7 @@ const eventPayloadSchemas: Partial<Record<EventType, z.ZodType>> = {
   MINIMUM_DAY_ENABLED: minimumEnabledPayload,
   MINIMUM_ITEM_COMPLETED: minimumItemPayload,
   WATER_LOGGED: waterPayload,
+  WATER_LOG_CORRECTED: waterCorrectionPayload,
   PROTEIN_ACTION_LOGGED: proteinPayload,
   SLEEP_LOGGED: sleepPayload,
   WORKOUT_STARTED: workoutStartedPayload,
